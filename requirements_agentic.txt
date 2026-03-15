@@ -1,0 +1,28 @@
+# Agentic AI Requirements
+# Install these for Agentic AI functionality
+
+# Core Agentic AI Framework
+crewai==0.28.8
+crewai-tools==0.1.6
+
+# LLM Integration
+langchain==0.1.16
+langchain-groq==0.0.3
+langchain-community==0.0.34
+
+# Vector Database for Agent Memory
+chromadb==0.4.24
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Async Operations
+asyncio==3.4.3
+
+# Existing requirements (keep these)
+streamlit>=1.28.0
+pandas>=2.0.0
+yfinance>=0.2.28
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+plotly>=5.17.0
