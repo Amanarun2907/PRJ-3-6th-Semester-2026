@@ -48,59 +48,130 @@ class IPOLiveEngine:
         except:
             return 0
 
-    # ── SOURCE 1: IPOWATCH.IN (CONFIRMED WORKING) ────────────────────────────
+    # ── SOURCE 1: LIVE GMP (ipowatch → investorgain → chittorgarh) ──────────
     def fetch_gmp_ipowatch(self):
-        """Fetch real GMP from ipowatch.in - CONFIRMED WORKING"""
+        """Fetch GMP from live sources only. Returns empty list if all fail."""
+        ipos = self._fetch_ipowatch_primary()
+        if ipos:
+            return ipos
+        print("ipowatch.in failed, trying investorgain.com...")
+        ipos = self._fetch_investorgain()
+        if ipos:
+            return ipos
+        print("investorgain.com failed, trying chittorgarh.com...")
+        ipos = self._fetch_chittorgarh()
+        if ipos:
+            return ipos
+        print("All live GMP sources unavailable.")
+        return []
+
+    def _fetch_ipowatch_primary(self):
+        """
+        Scrapes ipowatch.in/upcoming-ipo/ for real Open/Upcoming IPOs with dates,
+        then merges GMP values from the GMP page by company name matching.
+        Only returns IPOs that are genuinely Open or Upcoming (not historical).
+        """
         ipos = []
         try:
-            r = self._get("https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/")
-            soup = BeautifulSoup(r.text, "html.parser")
-            tables = soup.find_all("table")
-            for table in tables:
-                headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
-                if not any(h in ["ipo", "gmp", "company"] for h in headers):
+            hdrs = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer": "https://www.google.com/",
+            }
+
+            # ── STEP 1: Fetch GMP lookup dict from GMP page ──────────────────
+            gmp_lookup = {}  # company_name_lower → gmp_val
+            try:
+                rg = requests.get(
+                    "https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/",
+                    headers=hdrs, timeout=15
+                )
+                sg = BeautifulSoup(rg.text, "html.parser")
+                tables_g = sg.find_all("table")
+                target_g = max(tables_g, key=lambda t: len(t.find_all("tr"))) if tables_g else None
+                if target_g:
+                    for row in target_g.find_all("tr")[1:]:
+                        cols = row.find_all("td")
+                        if len(cols) < 3:
+                            continue
+                        name = cols[0].get_text(strip=True).lower().strip()
+                        gmp_nums = re.findall(r"[-+]?\d+\.?\d*", cols[2].get_text(strip=True).replace(",", ""))
+                        if name and gmp_nums:
+                            gmp_lookup[name] = float(gmp_nums[0])
+            except Exception as e:
+                print(f"GMP lookup error: {e}")
+
+            # ── STEP 2: Fetch upcoming/open IPOs from upcoming page ───────────
+            ru = requests.get("https://ipowatch.in/upcoming-ipo/", headers=hdrs, timeout=15)
+            ru.encoding = "utf-8"
+            su = BeautifulSoup(ru.text, "html.parser")
+            tables_u = su.find_all("table")
+
+            year = datetime.now().year
+
+            for table in tables_u:
+                rows = table.find_all("tr")
+                if len(rows) < 2:
                     continue
-                for row in table.find_all("tr")[1:]:
-                    cols = row.find_all("td")
-                    if len(cols) < 3:
+                header_cols = [c.get_text(strip=True).lower() for c in rows[0].find_all(["td", "th"])]
+                # Must have company + date columns
+                if not any("company" in h or "ipo" in h for h in header_cols):
+                    continue
+
+                for row in rows[1:]:
+                    cols = row.find_all(["td", "th"])
+                    if len(cols) < 2:
                         continue
                     try:
                         company = cols[0].get_text(strip=True)
-                        if not company or company.lower() in ["ipo", "company", ""]:
+                        if not company or company.lower() in ["company", "ipo", ""]:
                             continue
-                        gmp_text = cols[1].get_text(strip=True) if len(cols) > 1 else "0"
-                        price_text = cols[2].get_text(strip=True) if len(cols) > 2 else "0"
-                        gain_text = cols[3].get_text(strip=True) if len(cols) > 3 else "0"
-                        date_text = cols[4].get_text(strip=True) if len(cols) > 4 else ""
 
-                        # Parse GMP
-                        gmp_nums = re.findall(r"[-+]?\d+\.?\d*", gmp_text.replace(",", ""))
-                        gmp_val = float(gmp_nums[0]) if gmp_nums else 0
+                        date_text = cols[1].get_text(strip=True) if len(cols) > 1 else ""
+                        price_band = cols[3].get_text(strip=True) if len(cols) > 3 else ""
 
-                        # Parse price band
-                        price_nums = re.findall(r"\d+", price_text.replace(",", ""))
+                        # Parse price band → issue price (upper end)
+                        price_nums = re.findall(r"\d+\.?\d*", price_band.replace(",", ""))
                         issue_price = float(price_nums[-1]) if price_nums else 0
 
-                        # Parse gain
-                        gain_nums = re.findall(r"[-+]?\d+\.?\d*", gain_text)
-                        gain_pct = float(gain_nums[0]) if gain_nums else 0
-
-                        # Calculate GMP %
-                        gmp_pct = round((gmp_val / issue_price) * 100, 2) if issue_price > 0 else gain_pct
-                        est_listing = round(issue_price + gmp_val, 2) if issue_price > 0 else 0
-
-                        # Parse dates from date_text like "24-27 March" or "20-24 March"
-                        open_date, close_date = self._parse_date_range(date_text)
+                        # Parse date range like "10-16 April" or "6-8 April"
+                        open_date, close_date = self._parse_date_range_with_year(date_text, year)
                         status = self._get_status(open_date, close_date) if open_date else "Unknown"
+
+                        # Skip purely future 2026/2027 placeholders with no real date
+                        if date_text.strip() in ["2026", "2027", "TBA", ""]:
+                            continue
+
+                        # Only include Open or Upcoming (not Closed/Listed)
+                        if status == "Closed":
+                            continue
+
+                        # GMP lookup by fuzzy company name match
+                        gmp_val = 0.0
+                        company_lower = company.lower().strip()
+                        # exact match first
+                        if company_lower in gmp_lookup:
+                            gmp_val = gmp_lookup[company_lower]
+                        else:
+                            # partial match — first word
+                            first_word = company_lower.split()[0] if company_lower.split() else ""
+                            for k, v in gmp_lookup.items():
+                                if first_word and first_word in k:
+                                    gmp_val = v
+                                    break
+
+                        gmp_pct = round((gmp_val / issue_price) * 100, 2) if issue_price > 0 else 0
+                        est_listing = round(issue_price + gmp_val, 2) if issue_price > 0 else 0
 
                         ipos.append({
                             "company": company,
                             "gmp": gmp_val,
                             "gmp_percent": gmp_pct,
-                            "price_band": price_text,
+                            "price_band": price_band,
                             "issue_price": issue_price,
+                            "listing_price": 0,
                             "est_listing_price": est_listing,
-                            "listing_gain_text": gain_text,
+                            "listing_gain_text": f"{gmp_pct:+.1f}%",
                             "date_range": date_text,
                             "open_date": open_date,
                             "close_date": close_date,
@@ -110,105 +181,213 @@ class IPOLiveEngine:
                         })
                     except:
                         continue
-        except Exception as e:
-            print(f"ipowatch.in error: {e}")
-        return ipos
 
-    def _parse_date_range(self, date_str):
-        """Parse date range like '24-27 March' or '20-24 March 2025'"""
+        except Exception as e:
+            print(f"ipowatch.in upcoming error: {e}")
+
+        # Deduplicate by company name
+        seen = set()
+        unique = []
+        for ipo in ipos:
+            key = ipo["company"].lower().strip()
+            if key not in seen:
+                seen.add(key)
+                unique.append(ipo)
+
+        # Sort: Open first, then Upcoming
+        order = {"Open": 0, "Upcoming": 1, "Unknown": 2}
+        unique.sort(key=lambda x: order.get(x["status"], 3))
+        return unique
+
+    def _parse_date_range_with_year(self, date_str, year):
+        """Parse '10-16 April', '6-8 April 2026', '27-8 April' etc."""
         try:
-            year = datetime.now().year
-            # Pattern: "24-27 March" or "24-27 March 2025"
-            match = re.match(r"(\d+)-(\d+)\s+(\w+)(?:\s+(\d{4}))?", date_str.strip())
-            if match:
-                start_day = match.group(1)
-                end_day = match.group(2)
-                month = match.group(3)
-                yr = match.group(4) or str(year)
-                open_date = f"{start_day} {month} {yr}"
-                close_date = f"{end_day} {month} {yr}"
-                return open_date, close_date
+            date_str = date_str.strip()
+            # Pattern: "10-16 April" or "10-16 April 2026"
+            m = re.match(r"(\d+)-(\d+)\s+([A-Za-z]+)(?:\s+(\d{4}))?", date_str)
+            if m:
+                d1, d2, mon, yr = m.group(1), m.group(2), m.group(3), m.group(4) or str(year)
+                return f"{d1} {mon} {yr}", f"{d2} {mon} {yr}"
+            # Pattern: "27-8 April" (cross-month edge case — treat same month)
+            m2 = re.match(r"(\d+)\s+([A-Za-z]+)\s*-\s*(\d+)\s+([A-Za-z]+)(?:\s+(\d{4}))?", date_str)
+            if m2:
+                d1, mon1, d2, mon2, yr = m2.group(1), m2.group(2), m2.group(3), m2.group(4), m2.group(5) or str(year)
+                return f"{d1} {mon1} {yr}", f"{d2} {mon2} {yr}"
         except:
             pass
         return "", ""
 
+    def _fetch_investorgain(self):
+        """Fallback 1: investorgain.com GMP table"""
+        ipos = []
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer": "https://www.google.com/"
+            }
+            r = requests.get("https://www.investorgain.com/report/live-ipo-gmp/331/", headers=headers, timeout=15)
+            r.encoding = "utf-8"
+            soup = BeautifulSoup(r.text, "html.parser")
+            table = soup.find("table", {"id": "mainTable"}) or soup.find("table")
+            if not table:
+                return []
+            for row in table.find_all("tr")[1:]:
+                cols = row.find_all("td")
+                if len(cols) < 4:
+                    continue
+                try:
+                    company = cols[0].get_text(strip=True)
+                    if not company:
+                        continue
+                    price_text = cols[1].get_text(strip=True)
+                    gmp_text = cols[2].get_text(strip=True)
+                    gain_text = cols[3].get_text(strip=True)
+                    date_text = cols[4].get_text(strip=True) if len(cols) > 4 else ""
+                    price_nums = re.findall(r"\d+", price_text.replace(",", ""))
+                    issue_price = float(price_nums[-1]) if price_nums else 0
+                    gmp_nums = re.findall(r"[-+]?\d+\.?\d*", gmp_text.replace(",", ""))
+                    gmp_val = float(gmp_nums[0]) if gmp_nums else 0
+                    gain_nums = re.findall(r"[-+]?\d+\.?\d*", gain_text)
+                    gain_pct = float(gain_nums[0]) if gain_nums else 0
+                    gmp_pct = round((gmp_val / issue_price) * 100, 2) if issue_price > 0 else gain_pct
+                    est_listing = round(issue_price + gmp_val, 2) if issue_price > 0 else 0
+                    open_date, close_date = self._parse_date_range(date_text)
+                    status = self._get_status(open_date, close_date) if open_date else "Unknown"
+                    ipos.append({
+                        "company": company, "gmp": gmp_val, "gmp_percent": gmp_pct,
+                        "price_band": price_text, "issue_price": issue_price,
+                        "est_listing_price": est_listing, "listing_gain_text": gain_text,
+                        "date_range": date_text, "open_date": open_date, "close_date": close_date,
+                        "status": status,
+                        "signal": "Positive" if gmp_val > 0 else "Negative" if gmp_val < 0 else "Neutral",
+                        "source": "investorgain.com"
+                    })
+                except:
+                    continue
+        except Exception as e:
+            print(f"investorgain.com error: {e}")
+        return ipos
+
+    def _fetch_chittorgarh(self):
+        """Fallback 2: chittorgarh.com IPO GMP page"""
+        ipos = []
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer": "https://www.google.com/"
+            }
+            r = requests.get("https://www.chittorgarh.com/report/ipo-grey-market-premium-gmp-today/93/", headers=headers, timeout=15)
+            r.encoding = "utf-8"
+            soup = BeautifulSoup(r.text, "html.parser")
+            table = soup.find("table")
+            if not table:
+                return []
+            for row in table.find_all("tr")[1:]:
+                cols = row.find_all("td")
+                if len(cols) < 3:
+                    continue
+                try:
+                    company = cols[0].get_text(strip=True)
+                    if not company:
+                        continue
+                    price_text = cols[1].get_text(strip=True) if len(cols) > 1 else "0"
+                    gmp_text = cols[2].get_text(strip=True) if len(cols) > 2 else "0"
+                    gain_text = cols[3].get_text(strip=True) if len(cols) > 3 else "0"
+                    price_nums = re.findall(r"\d+", price_text.replace(",", ""))
+                    issue_price = float(price_nums[-1]) if price_nums else 0
+                    gmp_nums = re.findall(r"[-+]?\d+\.?\d*", gmp_text.replace(",", ""))
+                    gmp_val = float(gmp_nums[0]) if gmp_nums else 0
+                    gain_nums = re.findall(r"[-+]?\d+\.?\d*", gain_text)
+                    gain_pct = float(gain_nums[0]) if gain_nums else 0
+                    gmp_pct = round((gmp_val / issue_price) * 100, 2) if issue_price > 0 else gain_pct
+                    est_listing = round(issue_price + gmp_val, 2) if issue_price > 0 else 0
+                    ipos.append({
+                        "company": company, "gmp": gmp_val, "gmp_percent": gmp_pct,
+                        "price_band": price_text, "issue_price": issue_price,
+                        "est_listing_price": est_listing, "listing_gain_text": gain_text,
+                        "date_range": "", "open_date": "", "close_date": "",
+                        "status": "Unknown",
+                        "signal": "Positive" if gmp_val > 0 else "Negative" if gmp_val < 0 else "Neutral",
+                        "source": "chittorgarh.com"
+                    })
+                except:
+                    continue
+        except Exception as e:
+            print(f"chittorgarh.com error: {e}")
+        return ipos
+
+    def _parse_date_range(self, date_str):
+        """Wrapper kept for backward compatibility."""
+        return self._parse_date_range_with_year(date_str, datetime.now().year)
+
     # ── SOURCE 2: IPOWATCH.IN LISTED IPOs ────────────────────────────────────
     def fetch_listed_ipos_ipowatch(self):
-        """Fetch recently listed IPOs from ipowatch.in"""
+        """
+        Fetch recently listed IPOs directly from the GMP page.
+        Columns: IPO Name | Issue Price | GMP | Listing Price
+        Only returns rows where a real listing price exists.
+        Returns most recent 20.
+        """
         listed = []
         try:
-            r = self._get("https://ipowatch.in/ipo-listing-performance-tracker/")
+            hdrs = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer": "https://www.google.com/",
+            }
+            r = requests.get(
+                "https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/",
+                headers=hdrs, timeout=15
+            )
+            r.encoding = "utf-8"
             soup = BeautifulSoup(r.text, "html.parser")
             tables = soup.find_all("table")
-            for table in tables:
-                headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
-                if not any(h in ["ipo", "company", "listing"] for h in headers):
+            if not tables:
+                return []
+            # Largest table = GMP tracker with all listed IPOs
+            target = max(tables, key=lambda t: len(t.find_all("tr")))
+            rows = target.find_all("tr")
+            for row in rows[1:]:  # skip header row
+                cols = row.find_all("td")
+                if len(cols) < 4:
                     continue
-                for row in table.find_all("tr")[1:]:
-                    cols = row.find_all("td")
-                    if len(cols) < 3:
+                try:
+                    company = cols[0].get_text(strip=True)
+                    if not company or company.lower() in ["ipo name", "ipo", "company", ""]:
                         continue
-                    try:
-                        company = cols[0].get_text(strip=True)
-                        if not company or company.lower() in ["ipo", "company", ""]:
-                            continue
-                        # Try to find issue price and listing price
-                        issue_price = 0
-                        listing_price = 0
-                        listing_gain = 0
-                        listing_date = ""
-                        for i, col in enumerate(cols):
-                            text = col.get_text(strip=True)
-                            nums = re.findall(r"\d+\.?\d*", text.replace(",", ""))
-                            if i == 1 and nums:
-                                listing_date = text
-                            elif i == 2 and nums:
-                                issue_price = float(nums[0])
-                            elif i == 3 and nums:
-                                listing_price = float(nums[0])
-                            elif i == 4:
-                                gain_nums = re.findall(r"[-+]?\d+\.?\d*", text)
-                                if gain_nums:
-                                    listing_gain = float(gain_nums[0])
-                        if issue_price == 0 and listing_price == 0:
-                            continue
-                        if issue_price > 0 and listing_price > 0 and listing_gain == 0:
-                            listing_gain = round(((listing_price - issue_price) / issue_price) * 100, 2)
-                        listed.append({
-                            "company": company,
-                            "symbol": "",
-                            "listing_date": listing_date,
-                            "issue_price": issue_price,
-                            "listing_price": listing_price,
-                            "listing_gain": listing_gain,
-                            "status": "Listed",
-                            "source": "ipowatch.in"
-                        })
-                    except:
-                        continue
-        except Exception as e:
-            print(f"ipowatch listed error: {e}")
 
-        # Fallback: use GMP page data for recently listed
-        if not listed:
-            gmp_data = self.fetch_gmp_ipowatch()
-            for ipo in gmp_data:
-                if ipo.get("status") == "Closed" or ipo.get("listing_gain_text", "").replace("%", "").strip() not in ["", "-", "-%"]:
-                    issue_p = ipo.get("issue_price", 0)
-                    gain_text = ipo.get("listing_gain_text", "0")
-                    gain_nums = re.findall(r"[-+]?\d+\.?\d*", gain_text)
-                    gain = float(gain_nums[0]) if gain_nums else 0
-                    listing_p = round(issue_p * (1 + gain / 100), 2) if issue_p > 0 and gain != 0 else 0
+                    # col1 = issue price, col2 = GMP, col3 = listing price
+                    issue_nums = re.findall(r"\d+\.?\d*", cols[1].get_text(strip=True).replace(",", ""))
+                    gmp_nums   = re.findall(r"[-+]?\d+\.?\d*", cols[2].get_text(strip=True).replace(",", ""))
+                    list_nums  = re.findall(r"\d+\.?\d*", cols[3].get_text(strip=True).replace(",", ""))
+
+                    issue_price   = float(issue_nums[0]) if issue_nums else 0
+                    gmp_val       = float(gmp_nums[0]) if gmp_nums else 0
+                    listing_price = float(list_nums[0]) if list_nums else 0
+
+                    # Only include if listing price is real (not zero, not same as issue)
+                    if listing_price <= 0 or issue_price <= 0:
+                        continue
+
+                    listing_gain = round(((listing_price - issue_price) / issue_price) * 100, 2)
+
                     listed.append({
-                        "company": ipo["company"],
+                        "company": company,
                         "symbol": "",
-                        "listing_date": ipo.get("date_range", ""),
-                        "issue_price": issue_p,
-                        "listing_price": listing_p,
-                        "listing_gain": gain,
+                        "listing_date": "",
+                        "issue_price": issue_price,
+                        "listing_price": listing_price,
+                        "listing_gain": listing_gain,
+                        "gmp_at_listing": gmp_val,
                         "status": "Listed",
                         "source": "ipowatch.in"
                     })
+                except:
+                    continue
+        except Exception as e:
+            print(f"fetch_listed error: {e}")
         return listed[:20]
 
     # ── SUBSCRIPTION DATA FROM IPOWATCH ──────────────────────────────────────

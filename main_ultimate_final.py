@@ -12,6 +12,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import yfinance as yf
 from textblob import TextBlob
+import time
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -32,12 +33,21 @@ except ImportError:
     print("⚠️ Real-time news fetcher not available.")
 
 # Import Groq AI analyzer
+import os
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 try:
     from groq_ai_analyzer import GroqAIAnalyzer
-    GROQ_AI_AVAILABLE = True
-    GROQ_API_KEY = "your_groq_api_key_here"
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+    # Only mark available if a real key is configured
+    GROQ_AI_AVAILABLE = bool(GROQ_API_KEY and GROQ_API_KEY != "your_groq_api_key_here")
 except ImportError:
     GROQ_AI_AVAILABLE = False
+    GROQ_API_KEY = ""
     print("⚠️ Groq AI analyzer not available.")
 
 # Import enhanced quick actions
@@ -187,6 +197,30 @@ INDIAN_STOCKS = {
 # ==================== REAL-TIME MUTUAL FUND FETCHER (REQUIRED) ====================
 # NO STATIC/DUMMY DATA - ONLY REAL-TIME DATA FROM AMFI/MF API
 
+@st.cache_data(ttl=3600)
+def get_fund_nav_history(scheme_code: str, days: int = 365):
+    """Fetch real historical NAV time series from mfapi.in for a given scheme code."""
+    try:
+        import requests as _req
+        r = _req.get(f"https://api.mfapi.in/mf/{scheme_code}", timeout=15)
+        if r.status_code != 200:
+            return None, None
+        data = r.json().get("data", [])
+        if not data:
+            return None, None
+        data = list(reversed(data))  # mfapi returns newest first
+        data = data[-days:]
+        dates = [d["date"] for d in data]
+        navs  = [float(d["nav"]) for d in data]
+        return dates, navs
+    except Exception as e:
+        print(f"NAV history error for {scheme_code}: {e}")
+        return None, None
+
+
+# ==================== REAL-TIME MUTUAL FUND FETCHER (REQUIRED) ====================
+# NO STATIC/DUMMY DATA - ONLY REAL-TIME DATA FROM AMFI/MF API
+
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def get_realtime_mutual_funds():
     """Fetch real-time mutual fund data from multiple sources - ONLY REAL DATA"""
@@ -235,40 +269,42 @@ def organize_funds_by_category(funds_list):
         'Hybrid': [],
         'Gold & Silver': []
     }
-    
+
     for fund in funds_list:
         scheme_name = fund.get('scheme_name', '').lower()
-        
-        # Categorize based on scheme name
-        if 'large' in scheme_name or 'bluechip' in scheme_name or 'top 100' in scheme_name:
+
+        # Use explicit category tag from mfapi fetcher first
+        explicit_cat = fund.get('category', '')
+        if explicit_cat in categorized:
+            category = explicit_cat
+        elif 'large' in scheme_name or 'bluechip' in scheme_name or 'top 100' in scheme_name:
             category = 'Large Cap'
-        elif 'mid' in scheme_name or 'midcap' in scheme_name:
-            category = 'Mid Cap'
         elif 'small' in scheme_name or 'smallcap' in scheme_name:
             category = 'Small Cap'
-        elif 'flexi' in scheme_name or 'multi' in scheme_name:
-            category = 'Flexi Cap'
-        elif 'index' in scheme_name or 'nifty' in scheme_name or 'sensex' in scheme_name:
+        elif 'mid' in scheme_name or 'midcap' in scheme_name:
+            category = 'Mid Cap'
+        elif 'index' in scheme_name or ('nifty' in scheme_name and 'index' in scheme_name) or 'sensex' in scheme_name:
             category = 'Index Funds'
-        elif 'elss' in scheme_name or 'tax' in scheme_name:
+        elif 'elss' in scheme_name or ('tax' in scheme_name and 'saver' in scheme_name):
             category = 'ELSS'
-        elif 'debt' in scheme_name or 'bond' in scheme_name or 'gilt' in scheme_name or 'liquid' in scheme_name:
+        elif 'flexi' in scheme_name or 'flexicap' in scheme_name:
+            category = 'Flexi Cap'
+        elif 'debt' in scheme_name or 'bond' in scheme_name or 'gilt' in scheme_name or 'liquid' in scheme_name or 'overnight' in scheme_name:
             category = 'Debt'
-        elif 'hybrid' in scheme_name or 'balanced' in scheme_name:
+        elif 'hybrid' in scheme_name or 'balanced' in scheme_name or 'equity & bond' in scheme_name:
             category = 'Hybrid'
         elif 'gold' in scheme_name or 'silver' in scheme_name:
             category = 'Gold & Silver'
         else:
-            continue  # Skip uncategorized funds
-        
-        # Format fund data with ALL details
+            continue  # Skip uncategorized
+
         formatted_fund = {
             'name': fund.get('scheme_name', 'Unknown Fund'),
             'nav': fund.get('nav', 0),
             'return_1y': fund.get('return_1y', 0),
             'return_3y': fund.get('return_3y', 0),
             'return_5y': fund.get('return_5y', 0),
-            'expense': fund.get('expense_ratio', 0.75),
+            'expense': fund.get('expense_ratio', 0.50),
             'min_sip': fund.get('min_sip', 500),
             'rating': calculate_fund_rating_simple(fund),
             'aum': fund.get('aum', 10000),
@@ -281,17 +317,17 @@ def organize_funds_by_category(funds_list):
             'launch_date': fund.get('launch_date', 'N/A'),
             'last_updated': fund.get('date', datetime.now().strftime('%d-%b-%Y'))
         }
-        
+
         categorized[category].append(formatted_fund)
-    
-    # Sort each category by NAV (most recent data)
+
+    # Sort: funds with real returns first, then by return_1y desc
     for category in categorized:
         categorized[category] = sorted(
-            categorized[category], 
-            key=lambda x: x.get('nav', 0), 
+            categorized[category],
+            key=lambda x: (1 if x.get('return_1y', 0) != 0 else 0, x.get('return_1y', 0)),
             reverse=True
-        )[:100]  # Limit to top 100 per category for performance
-    
+        )[:50]  # top 50 per category
+
     return categorized
 
 def calculate_fund_rating_simple(fund):
@@ -3292,7 +3328,11 @@ def show_mutual_fund_center():
         st.error("❌ Real-time mutual fund fetcher not available")
         st.info("Please ensure 'realtime_mutual_fund_fetcher.py' is in the same directory")
         return
-    
+
+    # Fetch real-time fund data once at the top so all tabs can access it
+    with st.spinner("🔄 Loading mutual fund data..."):
+        realtime_funds, total_fund_count = get_realtime_mutual_funds()
+
     # Create comprehensive tabs
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📚 Learn & Understand",
@@ -3881,11 +3921,7 @@ def show_mutual_fund_center():
                 st.cache_data.clear()
                 st.rerun()
         
-        # Fetch real-time or static data
-        with st.spinner("🔄 Loading mutual fund data..."):
-            realtime_funds, total_fund_count = get_realtime_mutual_funds()
-        
-        # Show total count
+        # Show total count (realtime_funds already fetched at function top)
         st.success(f"✅ {total_fund_count} funds available across all categories")
         
         # Filter options
@@ -3959,7 +3995,7 @@ def show_mutual_fund_center():
             
             if compare_funds:
                 st.markdown("### 📊 Fund Comparison")
-                
+
                 comparison_data = []
                 for fund_name in compare_funds:
                     fund = next((f for f in funds if f['name'] == fund_name), None)
@@ -3975,34 +4011,72 @@ def show_mutual_fund_center():
                             'Rating': '⭐' * fund['rating'],
                             'Score': f"{score}/100"
                         })
-                
+
                 df_compare = pd.DataFrame(comparison_data)
                 st.dataframe(df_compare, use_container_width=True, hide_index=True)
-                
-                # Performance comparison chart
-                fig_compare = go.Figure()
-                
-                for fund_name in compare_funds:
+
+                # ── Real NAV Time Series Chart ──────────────────────────────
+                st.markdown("#### 📈 NAV History (Real-time from mfapi.in)")
+
+                period_map = {"1 Month": 30, "3 Months": 90, "6 Months": 180, "1 Year": 365, "3 Years": 1095}
+                selected_period = st.radio("Period", list(period_map.keys()), index=3, horizontal=True)
+                days = period_map[selected_period]
+
+                fig_ts = go.Figure()
+                any_data = False
+
+                colors = ["#00d4ff", "#00ff88", "#ff9800"]
+                for idx, fund_name in enumerate(compare_funds):
                     fund = next((f for f in funds if f['name'] == fund_name), None)
-                    if fund:
-                        fig_compare.add_trace(go.Bar(
-                            name=fund['name'][:30] + '...' if len(fund['name']) > 30 else fund['name'],
-                            x=['1Y Return', '3Y Return'],
-                            y=[fund.get('return_1y', 0), fund.get('return_3y', 0)]
+                    if not fund:
+                        continue
+                    scheme_code = fund.get('scheme_code', '')
+                    if not scheme_code:
+                        st.caption(f"⚠️ No scheme code for {fund_name[:40]} — cannot plot NAV history")
+                        continue
+
+                    with st.spinner(f"Loading NAV history for {fund_name[:35]}..."):
+                        dates, navs = get_fund_nav_history(scheme_code, days)
+
+                    if dates and navs:
+                        # Normalize to % change from start for fair comparison
+                        base = navs[0]
+                        pct_change = [round((n / base - 1) * 100, 2) for n in navs]
+                        short_name = fund_name[:35] + "..." if len(fund_name) > 35 else fund_name
+                        fig_ts.add_trace(go.Scatter(
+                            x=dates,
+                            y=pct_change,
+                            mode='lines',
+                            name=short_name,
+                            line=dict(color=colors[idx % len(colors)], width=2),
+                            hovertemplate=(
+                                f"<b>{short_name}</b><br>"
+                                "Date: %{x}<br>"
+                                "Change: %{y:.2f}%<extra></extra>"
+                            )
                         ))
-                
-                fig_compare.update_layout(
-                    title="Returns Comparison",
-                    yaxis_title="Return (%)",
-                    barmode='group',
-                    height=400,
-                    template="plotly_dark",
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
-                )
-                
-                st.plotly_chart(fig_compare, use_container_width=True)
-                
+                        any_data = True
+                    else:
+                        st.caption(f"⚠️ NAV history unavailable for scheme code {scheme_code}")
+
+                if any_data:
+                    fig_ts.update_layout(
+                        title=f"NAV Performance Comparison — {selected_period} (% change from start)",
+                        xaxis_title="Date",
+                        yaxis_title="Return (%)",
+                        height=420,
+                        template="plotly_dark",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        hovermode='x unified',
+                        legend=dict(orientation='h', yanchor='bottom', y=1.02)
+                    )
+                    fig_ts.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+                    st.plotly_chart(fig_ts, use_container_width=True)
+                    st.caption("Source: mfapi.in | NAV data is official AMFI data")
+                else:
+                    st.warning("Could not load NAV history. Funds may not have scheme codes yet.")
+
                 # Best fund recommendation
                 if comparison_data:
                     best_fund = max(comparison_data, key=lambda x: int(x['Score'].split('/')[0]))
@@ -4048,28 +4122,55 @@ def show_mutual_fund_center():
                         st.write(f"**Scheme Type**: {fund.get('scheme_type', 'N/A')}")
                     
                     with col_detail2:
-                        st.write(f"**AUM**: ₹{fund.get('aum', 0):,.0f} Crores")
+                        st.write(f"**AUM**: {('₹{:,.0f} Crores'.format(fund.get('aum', 0))) if fund.get('aum', 0) > 0 else 'N/A'}")
                         st.write(f"**Exit Load**: {fund.get('exit_load', 'N/A')}")
                         st.write(f"**Fund Manager**: {fund.get('fund_manager', 'N/A')}")
                         st.write(f"**Launch Date**: {fund.get('launch_date', 'N/A')}")
                         st.write(f"**Last NAV Update**: {fund.get('last_updated', 'Today')}")
                     
                     # Returns breakdown
-                    if fund.get('return_1y', 0) > 0 or fund.get('return_3y', 0) > 0 or fund.get('return_5y', 0) > 0:
+                    if fund.get('return_1y', 0) != 0 or fund.get('return_3y', 0) != 0 or fund.get('return_5y', 0) != 0:
                         st.markdown("#### 📈 Historical Returns")
                         returns_col1, returns_col2, returns_col3 = st.columns(3)
-                        
+
                         with returns_col1:
-                            if fund.get('return_1y', 0) > 0:
+                            if fund.get('return_1y', 0) != 0:
                                 st.metric("1 Year Return", f"{fund['return_1y']:.2f}%")
-                        
+
                         with returns_col2:
-                            if fund.get('return_3y', 0) > 0:
+                            if fund.get('return_3y', 0) != 0:
                                 st.metric("3 Year Return (CAGR)", f"{fund['return_3y']:.2f}%")
-                        
+
                         with returns_col3:
-                            if fund.get('return_5y', 0) > 0:
+                            if fund.get('return_5y', 0) != 0:
                                 st.metric("5 Year Return (CAGR)", f"{fund['return_5y']:.2f}%")
+
+                    # ── NAV Time Series for individual fund ─────────────────
+                    scheme_code = fund.get('scheme_code', '')
+                    if scheme_code:
+                        st.markdown("#### 📊 NAV History (Live from mfapi.in)")
+                        with st.spinner("Loading NAV history..."):
+                            dates_f, navs_f = get_fund_nav_history(scheme_code, 365)
+                        if dates_f and navs_f:
+                            fig_nav = go.Figure()
+                            fig_nav.add_trace(go.Scatter(
+                                x=dates_f, y=navs_f,
+                                mode='lines',
+                                fill='tozeroy',
+                                line=dict(color='#00d4ff', width=2),
+                                fillcolor='rgba(0,212,255,0.08)',
+                                hovertemplate="Date: %{x}<br>NAV: ₹%{y:.2f}<extra></extra>"
+                            ))
+                            fig_nav.update_layout(
+                                title=f"NAV — Last 1 Year",
+                                xaxis_title="Date", yaxis_title="NAV (₹)",
+                                height=300, template="plotly_dark",
+                                paper_bgcolor='rgba(0,0,0,0)',
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                margin=dict(t=40, b=30)
+                            )
+                            st.plotly_chart(fig_nav, use_container_width=True)
+                            st.caption(f"Source: mfapi.in | Scheme Code: {scheme_code}")
                     
                     # Investment details
                     st.markdown("#### 💰 Investment Information")
@@ -5450,11 +5551,29 @@ def show_news_sentiment():
 
 # ==================== AI ASSISTANT PAGE ====================
 def show_ai_assistant():
-    st.header("AI Investment Assistant - Powered by Groq")
-    
-    # Hero Section
-    html_hero = "<div style='background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 255, 136, 0.15) 100%); padding: 2rem; border-radius: 15px; border: 2px solid #00d4ff; margin-bottom: 2rem; box-shadow: 0 8px 32px rgba(0, 212, 255, 0.3);'><h2 style='color: #00d4ff; margin: 0; text-align: center;'>Your Personal AI Investment Advisor</h2><p style='margin: 1rem 0 0 0; text-align: center; font-size: 1.1rem;'>Powered by Groq Llama Model | Real-time Market Data | Expert Analysis</p></div>"
+    st.header("🤖 AI Investment Assistant - Powered by Groq")
+
+    html_hero = """
+    <div style='background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(0,255,136,0.15));
+                padding:2rem;border-radius:15px;border:2px solid #00d4ff;
+                margin-bottom:1.5rem;box-shadow:0 8px 32px rgba(0,212,255,0.3);'>
+        <h2 style='color:#00d4ff;margin:0;text-align:center;'>Your Personal AI Investment Advisor</h2>
+        <p style='margin:0.8rem 0 0 0;text-align:center;font-size:1rem;color:#e0e0e0;'>
+            Powered by Groq Llama 3.3 70B &nbsp;|&nbsp; Real-time Market Data &nbsp;|&nbsp; Expert Analysis
+        </p>
+    </div>
+    """
     st.markdown(html_hero, unsafe_allow_html=True)
+
+    # API key status banner
+    if GROQ_AI_AVAILABLE:
+        st.success("✅ Groq AI Active — Full AI-powered responses enabled")
+    else:
+        st.warning(
+            "⚠️ Groq API key not configured — using smart data-driven responses. "
+            "To enable full AI: add `GROQ_API_KEY=your_key` to the `.env` file. "
+            "Get a free key at https://console.groq.com"
+        )
     
     # Quick Action Buttons
     st.markdown("### ⚡ Quick Actions")
@@ -5683,31 +5802,230 @@ Be specific and actionable."""
                     st.error("Groq AI not available")
 
 def generate_ai_response_groq(user_input):
-    """Generate AI response using Groq API"""
-    
-    if not GROQ_AI_AVAILABLE:
-        return "Groq AI is not available. Please check the API configuration.\n\nI can still help you with basic information about:\n- Stock market basics\n- Mutual fund categories\n- Investment strategies\n- Risk management principles"
-    
-    try:
-        # Initialize Groq analyzer
-        analyzer = GroqAIAnalyzer(GROQ_API_KEY)
-        
-        # Create context-aware prompt
-        system_context = "You are an expert Indian stock market investment advisor. Provide accurate, actionable advice on stocks, mutual funds, IPOs, and investment strategies. Focus on Indian markets (NSE, BSE) and Indian investment instruments. Be concise, clear, and always mention risks where applicable."
-        
-        # Enhanced prompt with context
-        enhanced_prompt = f"{system_context}\n\nUser Question: {user_input}\n\nProvide a helpful, detailed response with:\n- Clear recommendations\n- Specific examples where relevant\n- Risk considerations\n- Actionable next steps\n\nKeep response under 300 words."
-        
-        # Call Groq API
-        response = analyzer._call_groq(enhanced_prompt)
-        
-        if response:
-            return response
-        else:
-            return "❌ I'm having trouble generating a response. Please try rephrasing your question."
-            
-    except Exception as e:
-        return f"❌ Error: {str(e)}\n\nPlease try again or rephrase your question."
+    """Generate AI response — Groq API if key is set, else smart rule-based fallback."""
+
+    # ── Try Groq API first ────────────────────────────────────────────────────
+    if GROQ_AI_AVAILABLE and GROQ_API_KEY:
+        try:
+            analyzer = GroqAIAnalyzer(GROQ_API_KEY)
+            response = analyzer._call_groq(user_input)
+            if response:
+                return response
+            print("Groq returned empty response, falling back to rule-based.")
+        except Exception as e:
+            print("Groq call failed: " + str(e))
+
+    # ── Rule-based fallback using live platform data ───────────────────────────
+    return _rule_based_response(user_input)
+
+
+def _rule_based_response(user_input):
+    """Smart rule-based investment assistant using live data from the platform."""
+    q = user_input.lower().strip()
+
+    # ── Stock query ───────────────────────────────────────────────────────────
+    stock_keywords = ["stock", "share", "equity", "nse", "bse", "reliance", "tcs",
+                      "infosys", "hdfc", "icici", "sbi", "wipro", "bajaj", "adani",
+                      "buy", "sell", "hold", "target", "price"]
+    if any(k in q for k in stock_keywords):
+        # Try to pull live data for mentioned stock
+        mentioned = None
+        for name, sym in INDIAN_STOCKS.items():
+            if name.lower() in q or sym.lower().replace(".ns", "") in q:
+                mentioned = (name, sym)
+                break
+        if mentioned:
+            try:
+                data = get_stock_data(mentioned[1], period="1mo")
+                if not data.empty:
+                    curr  = round(float(data["Close"].iloc[-1]), 2)
+                    prev  = round(float(data["Close"].iloc[-2]), 2)
+                    chg   = round(curr - prev, 2)
+                    chg_p = round((chg / prev) * 100, 2)
+                    high  = round(float(data["High"].max()), 2)
+                    low   = round(float(data["Low"].min()), 2)
+                    avg   = round(float(data["Close"].mean()), 2)
+                    trend = "📈 Uptrend" if curr > avg else "📉 Downtrend"
+                    support    = round(low * 1.01, 2)
+                    resistance = round(high * 0.99, 2)
+                    rec = "BUY" if curr < avg and chg_p > -1 else "HOLD" if chg_p >= -1 else "AVOID"
+                    return (
+                        f"**{mentioned[0]} ({mentioned[1]}) — Live Analysis**\n\n"
+                        f"📊 Current Price: ₹{curr} ({chg_p:+.2f}% today)\n"
+                        f"📅 30-Day Range: ₹{low} – ₹{high}\n"
+                        f"📉 30-Day Avg: ₹{avg}\n"
+                        f"🔮 Trend: {trend}\n"
+                        f"🛡️ Support: ₹{support} | Resistance: ₹{resistance}\n\n"
+                        f"**Recommendation: {rec}**\n"
+                        f"{'Price is below 30-day average — potential entry point.' if rec == 'BUY' else 'Price near average — hold and monitor.' if rec == 'HOLD' else 'Recent weakness — wait for stabilisation.'}\n\n"
+                        f"⚠️ *This is data-driven analysis, not financial advice. Always do your own research.*"
+                    )
+            except Exception:
+                pass
+        return (
+            "**Stock Investment Guide — Indian Markets**\n\n"
+            "**How to evaluate a stock:**\n"
+            "- P/E Ratio: Compare with sector average (lower = cheaper)\n"
+            "- Revenue growth: Look for consistent 15%+ YoY growth\n"
+            "- Debt-to-equity: Prefer < 1 for most sectors\n"
+            "- Promoter holding: Higher is generally better (> 50%)\n\n"
+            "**Top sectors to watch (2025):**\n"
+            "- IT & Technology (AI tailwinds)\n"
+            "- Banking & NBFC (rate cycle turning)\n"
+            "- Infrastructure & Capital Goods (govt capex)\n"
+            "- Pharma & Healthcare (export recovery)\n\n"
+            "💡 *Tip: Use the Stock Intelligence tab for live prices and charts on 50+ stocks.*\n\n"
+            "⚠️ *Not financial advice. Please consult a SEBI-registered advisor.*"
+        )
+
+    # ── Mutual Fund / SIP query ───────────────────────────────────────────────
+    mf_keywords = ["mutual fund", "sip", "fund", "nav", "elss", "debt fund",
+                   "large cap", "mid cap", "small cap", "hybrid", "index fund"]
+    if any(k in q for k in mf_keywords):
+        try:
+            funds_data, count = get_realtime_mutual_funds()
+            if funds_data and count > 0:
+                # Pick top fund per key category by 3Y return
+                highlights = []
+                for cat in ["Large Cap", "Mid Cap", "ELSS", "Index Funds"]:
+                    cat_funds = funds_data.get(cat, [])
+                    if cat_funds:
+                        top = max(cat_funds, key=lambda x: x.get("return_3y", 0))
+                        highlights.append(
+                            f"- **{cat}**: {top['name'][:40]} | NAV ₹{top['nav']:.2f} | "
+                            f"3Y Return: {top.get('return_3y', 0):.1f}%"
+                        )
+                fund_lines = "\n".join(highlights) if highlights else "Live fund data loading..."
+                return (
+                    f"**Mutual Fund Recommendations — Live Data ({count} funds tracked)**\n\n"
+                    f"**Top Performers by Category (3Y CAGR):**\n{fund_lines}\n\n"
+                    f"**SIP Strategy by Risk Profile:**\n"
+                    f"- 🟢 Conservative: 60% Debt + 30% Hybrid + 10% Large Cap\n"
+                    f"- 🟡 Moderate: 40% Large Cap + 30% Hybrid + 20% Mid Cap + 10% Debt\n"
+                    f"- 🔴 Aggressive: 30% Large Cap + 30% Mid Cap + 25% Small Cap + 15% ELSS\n\n"
+                    f"💡 *Use the Mutual Fund Centre tab to browse all {count} live funds with full details.*\n\n"
+                    f"⚠️ *Mutual fund investments are subject to market risks.*"
+                )
+        except Exception:
+            pass
+        return (
+            "**SIP Investment Guide**\n\n"
+            "**Why SIP works:**\n"
+            "- Rupee cost averaging reduces timing risk\n"
+            "- ₹5,000/month for 20 years @ 12% = ₹49.9 Lakhs\n"
+            "- ₹10,000/month for 20 years @ 12% = ₹99.9 Lakhs\n\n"
+            "**Recommended SIP allocation:**\n"
+            "- Start with Large Cap funds (stable, lower risk)\n"
+            "- Add Mid Cap after 1 year of investing\n"
+            "- ELSS for tax saving under Section 80C (up to ₹1.5L)\n\n"
+            "💡 *Use the Mutual Fund Centre tab for live NAV and fund comparison.*"
+        )
+
+    # ── IPO query ─────────────────────────────────────────────────────────────
+    ipo_keywords = ["ipo", "listing", "gmp", "grey market", "allotment", "subscribe"]
+    if any(k in q for k in ipo_keywords):
+        return (
+            "**IPO Investment Guide**\n\n"
+            "**How to evaluate an IPO:**\n"
+            "- GMP (Grey Market Premium): Positive GMP > 15% = strong listing expected\n"
+            "- Subscription: QIB oversubscription > 10x is a strong signal\n"
+            "- Valuation: Compare P/E with listed peers\n"
+            "- Promoter background and financials (3-year revenue/profit trend)\n\n"
+            "**IPO Application Strategy:**\n"
+            "- Apply in retail category (up to ₹2 Lakhs)\n"
+            "- Apply through multiple family members for better allotment odds\n"
+            "- Use ASBA — funds blocked, not debited until allotment\n\n"
+            "**Exit Strategy:**\n"
+            "- GMP > 30%: Consider listing day profit booking\n"
+            "- Strong fundamentals: Hold for 6–12 months post listing\n\n"
+            "💡 *Check the IPO Intelligence Hub tab for live GMP and subscription data.*\n\n"
+            "⚠️ *IPO investments carry high risk. Not all IPOs list at a premium.*"
+        )
+
+    # ── Portfolio query ───────────────────────────────────────────────────────
+    portfolio_keywords = ["portfolio", "diversif", "allocation", "rebalanc", "risk"]
+    if any(k in q for k in portfolio_keywords):
+        return (
+            "**Portfolio Building Guide — Indian Markets**\n\n"
+            "**Recommended allocation by age:**\n"
+            "- Age 20–30: 80% Equity + 15% Mutual Funds + 5% Gold\n"
+            "- Age 30–45: 60% Equity + 25% Mutual Funds + 10% Debt + 5% Gold\n"
+            "- Age 45–60: 40% Equity + 30% Debt + 20% Mutual Funds + 10% Gold\n\n"
+            "**Diversification rules:**\n"
+            "- Max 10% in any single stock\n"
+            "- Spread across at least 4–5 sectors\n"
+            "- Include both growth (mid/small cap) and defensive (FMCG, pharma) stocks\n\n"
+            "**Rebalancing:**\n"
+            "- Review quarterly, rebalance annually\n"
+            "- Trim winners that exceed target allocation by > 5%\n\n"
+            "💡 *Use the Portfolio & Risk Management tab to track your holdings live.*"
+        )
+
+    # ── Market outlook query ──────────────────────────────────────────────────
+    market_keywords = ["market", "nifty", "sensex", "outlook", "trend", "bull", "bear",
+                       "economy", "rbi", "interest rate", "inflation", "gdp"]
+    if any(k in q for k in market_keywords):
+        try:
+            nifty = get_nifty_data_robust()
+            if nifty is not None and not nifty.empty:
+                curr  = round(float(nifty["Close"].iloc[-1]), 2)
+                prev  = round(float(nifty["Close"].iloc[-2]), 2)
+                chg_p = round(((curr - prev) / prev) * 100, 2)
+                high  = round(float(nifty["High"].max()), 2)
+                low   = round(float(nifty["Low"].min()), 2)
+                avg   = round(float(nifty["Close"].mean()), 2)
+                trend = "Bullish" if curr > avg else "Bearish"
+                return (
+                    f"**Indian Market Outlook — Live Data**\n\n"
+                    f"📊 Nifty 50: {curr:,.2f} ({chg_p:+.2f}% today)\n"
+                    f"📅 Recent Range: {low:,.2f} – {high:,.2f}\n"
+                    f"📉 Average: {avg:,.2f}\n"
+                    f"🔮 Current Trend: **{trend}**\n\n"
+                    f"**Key factors to watch:**\n"
+                    f"- RBI monetary policy and interest rate decisions\n"
+                    f"- FII/DII flows (check Smart Money Tracker tab)\n"
+                    f"- Quarterly earnings season results\n"
+                    f"- Global cues: US Fed, crude oil, dollar index\n\n"
+                    f"**Strategy for current market:**\n"
+                    f"{'- Market above average: Stay invested, avoid aggressive buying at highs' if trend == 'Bullish' else '- Market below average: Good SIP opportunity, consider staggered lumpsum'}\n"
+                    f"- Keep 10–15% cash for dips\n\n"
+                    f"⚠️ *Market predictions are uncertain. Invest based on your goals and risk tolerance.*"
+                )
+        except Exception:
+            pass
+
+    # ── Tax query ─────────────────────────────────────────────────────────────
+    tax_keywords = ["tax", "80c", "ltcg", "stcg", "elss", "capital gain", "itr"]
+    if any(k in q for k in tax_keywords):
+        return (
+            "**Investment Tax Guide — India (FY 2024-25)**\n\n"
+            "**Equity (Stocks & Equity Mutual Funds):**\n"
+            "- STCG (< 1 year): 20% tax\n"
+            "- LTCG (> 1 year): 12.5% tax on gains above ₹1.25 Lakh\n\n"
+            "**Debt Mutual Funds:**\n"
+            "- Taxed as per income slab (added to income)\n\n"
+            "**Tax Saving Investments (Section 80C — up to ₹1.5L):**\n"
+            "- ELSS Mutual Funds (3-year lock-in, best returns)\n"
+            "- PPF (15-year lock-in, safe)\n"
+            "- NPS (additional ₹50K under 80CCD)\n\n"
+            "💡 *ELSS is the best 80C option — equity returns + tax saving + shortest lock-in.*\n\n"
+            "⚠️ *Consult a CA for personalised tax advice.*"
+        )
+
+    # ── Default helpful response ──────────────────────────────────────────────
+    return (
+        "**AI Investment Assistant — How can I help?**\n\n"
+        "I can answer questions about:\n\n"
+        "📊 **Stocks** — Ask about any Indian stock (e.g. 'Analyse Reliance', 'Should I buy TCS?')\n"
+        "💰 **Mutual Funds & SIP** — Fund recommendations, SIP planning, NAV queries\n"
+        "🚀 **IPOs** — GMP analysis, subscription advice, allotment tips\n"
+        "🎯 **Portfolio** — Diversification, allocation, rebalancing strategies\n"
+        "📈 **Market Outlook** — Nifty trends, sector analysis, macro factors\n"
+        "💸 **Tax** — LTCG, STCG, ELSS, 80C investment options\n\n"
+        "💡 *Try asking: 'Analyse HDFC Bank', 'Best SIP for ₹5000/month', or 'What is GMP in IPO?'*\n\n"
+        "🔑 *To enable AI-powered responses, add your Groq API key to the `.env` file: `GROQ_API_KEY=your_key`*\n"
+        "*Get a free key at: https://console.groq.com*"
+    )
 
 # ==================== ADVANCED ANALYTICS PAGE ====================
 # Import advanced analytics module
