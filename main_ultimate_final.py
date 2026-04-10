@@ -132,6 +132,22 @@ except ImportError:
         AGENTIC_AI_AVAILABLE = False
         print("⚠️ Agentic AI not available.")
 
+# Import AI Loss Explainer
+try:
+    from explain_my_loss import show_explain_my_loss
+    EXPLAIN_LOSS_AVAILABLE = True
+except ImportError:
+    EXPLAIN_LOSS_AVAILABLE = False
+    print("⚠️ Explain My Loss module not available.")
+
+# Import SIP Goal Planner
+try:
+    from sip_goal_planner import show_sip_goal_planner
+    SIP_PLANNER_AVAILABLE = True
+except ImportError:
+    SIP_PLANNER_AVAILABLE = False
+    print("⚠️ SIP Goal Planner not available.")
+
 # Page Configuration
 st.set_page_config(
     page_title="सार्थक निवेश - Ultimate Platform",
@@ -143,23 +159,35 @@ st.set_page_config(
 # ==================== PROFESSIONAL DARK THEME CSS ====================
 st.markdown("""
 <style>
+    /* ── App background ── */
     .stApp {
         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
         color: #ffffff;
     }
+
+    /* ── Sidebar ── */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0f3460 0%, #16213e 100%);
         border-right: 2px solid #00d4ff;
     }
+    [data-testid="stSidebar"] * {
+        color: #ffffff !important;
+    }
+
+    /* ── Headings ── */
     h1, h2, h3, h4, h5, h6 {
         color: #00d4ff !important;
         font-weight: 700 !important;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
     }
+
+    /* ── General text ── */
     p, span, div, label {
         color: #ffffff !important;
-        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
     }
+
+    /* ── Metrics ── */
     [data-testid="stMetricValue"] {
         color: #00ff88 !important;
         font-size: 2rem !important;
@@ -169,16 +197,20 @@ st.markdown("""
         color: #ffffff !important;
         font-weight: 600 !important;
     }
+
+    /* ── Buttons ── */
     .stButton > button {
         background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%) !important;
         color: #000000 !important;
         font-weight: 700 !important;
         border-radius: 10px !important;
         padding: 12px 30px !important;
-        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4) !important;
+        box-shadow: 0 4px 15px rgba(0,212,255,0.4) !important;
     }
+
+    /* ── Dataframe / table ── */
     .dataframe {
-        background-color: rgba(0, 0, 0, 0.3) !important;
+        background-color: rgba(0,0,0,0.3) !important;
         color: #ffffff !important;
     }
     .dataframe th {
@@ -187,7 +219,111 @@ st.markdown("""
         font-weight: 700 !important;
     }
     .dataframe td {
-        background-color: rgba(22, 33, 62, 0.6) !important;
+        background-color: rgba(22,33,62,0.6) !important;
+        color: #ffffff !important;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       SELECTBOX / DROPDOWN  — the main fix
+       Targets both the closed pill and the open popup list
+    ══════════════════════════════════════════════════════ */
+
+    /* Closed selectbox box */
+    [data-baseweb="select"] > div,
+    [data-baseweb="select"] > div > div,
+    [data-baseweb="select"] input {
+        background-color: #16213e !important;
+        color: #ffffff !important;
+        border-color: #00d4ff !important;
+    }
+
+    /* Selected value text inside closed box */
+    [data-baseweb="select"] [data-testid="stMarkdownContainer"] p,
+    [data-baseweb="select"] span,
+    [data-baseweb="select"] div[class*="singleValue"],
+    [data-baseweb="select"] div[class*="placeholder"] {
+        color: #ffffff !important;
+        text-shadow: none !important;
+    }
+
+    /* Dropdown popup container */
+    [data-baseweb="popover"],
+    [data-baseweb="menu"],
+    ul[data-baseweb="menu"] {
+        background-color: #16213e !important;
+        border: 1px solid #00d4ff !important;
+    }
+
+    /* Every option row in the dropdown */
+    [role="option"],
+    li[role="option"],
+    [data-baseweb="menu"] li,
+    [data-baseweb="menu"] [role="option"] {
+        background-color: #16213e !important;
+        color: #ffffff !important;
+    }
+
+    /* Hovered option */
+    [role="option"]:hover,
+    li[role="option"]:hover,
+    [data-baseweb="menu"] [role="option"]:hover {
+        background-color: #0f3460 !important;
+        color: #00d4ff !important;
+    }
+
+    /* Selected / active option */
+    [aria-selected="true"],
+    [data-baseweb="menu"] [aria-selected="true"] {
+        background-color: #0f3460 !important;
+        color: #00d4ff !important;
+        font-weight: 700 !important;
+    }
+
+    /* Text inside every option */
+    [role="option"] span,
+    [role="option"] div,
+    [role="option"] p,
+    li[role="option"] span,
+    li[role="option"] div {
+        color: #ffffff !important;
+        text-shadow: none !important;
+    }
+
+    /* ── Text inputs, number inputs, date inputs ── */
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    textarea,
+    [data-baseweb="input"] input,
+    [data-baseweb="textarea"] textarea {
+        background-color: #16213e !important;
+        color: #ffffff !important;
+        border-color: #00d4ff !important;
+    }
+
+    /* ── Radio buttons label text ── */
+    [data-testid="stRadio"] label,
+    [data-testid="stRadio"] span {
+        color: #ffffff !important;
+    }
+
+    /* ── Tabs ── */
+    [data-baseweb="tab"] {
+        color: #ffffff !important;
+    }
+    [data-baseweb="tab"][aria-selected="true"] {
+        color: #00d4ff !important;
+        border-bottom-color: #00d4ff !important;
+    }
+
+    /* ── Expander header ── */
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary span {
+        color: #00d4ff !important;
+    }
+
+    /* ── Info / warning / error boxes ── */
+    [data-testid="stAlert"] {
         color: #ffffff !important;
     }
 </style>
@@ -1780,16 +1916,18 @@ def main():
             "🏠 Ultimate Dashboard",
             "📊 Stock Intelligence (50+ Stocks)",
             mf_label,
+            "🎯 SIP Goal Planner",
             "🚀 IPO Intelligence Hub",
             "💰 Smart Money Tracker",
             agentic_label,
             "🛡️ Portfolio & Risk Management",
+            "🧠 AI Finance Coach — Explain My Portfolio",
             "📰 News & Sentiment Analysis",
             "🤖 AI Investment Assistant",
-            "📈 Advanced Analytics"
+            "📈 Advanced Analytics",
         ]
     )
-    
+
     # Route to pages
     if page == "🏠 Ultimate Dashboard":
         show_dashboard()
@@ -1797,6 +1935,11 @@ def main():
         show_stock_intelligence()
     elif "Mutual Fund Center" in page:
         show_mutual_fund_center()
+    elif page == "🎯 SIP Goal Planner":
+        if SIP_PLANNER_AVAILABLE:
+            show_sip_goal_planner()
+        else:
+            st.error("❌ SIP Goal Planner not found. Check sections/03_mutual_fund_sip/sip_goal_planner.py")
     elif page == "🚀 IPO Intelligence Hub":
         show_ipo_intelligence()
     elif page == "💰 Smart Money Tracker":
@@ -1805,6 +1948,11 @@ def main():
         show_agentic_ai_hub_page()
     elif page == "🛡️ Portfolio & Risk Management":
         show_portfolio_management()
+    elif page == "🧠 AI Finance Coach — Explain My Portfolio":
+        if EXPLAIN_LOSS_AVAILABLE:
+            show_explain_my_loss()
+        else:
+            st.error("❌ AI Finance Coach module not found. Check sections/07_portfolio_risk/explain_my_loss.py")
     elif page == "📰 News & Sentiment Analysis":
         show_news_sentiment()
     elif page == "🤖 AI Investment Assistant":

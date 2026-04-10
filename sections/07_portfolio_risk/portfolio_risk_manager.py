@@ -127,7 +127,9 @@ class PortfolioRiskManager:
             holdings_data = []
             for _, row in df.iterrows():
                 try:
-                    ticker = yf.Ticker(f"{row['symbol']}.NS")
+                    sym = str(row['symbol']).strip()
+                    ticker_sym = sym if sym.endswith(".NS") else sym + ".NS"
+                    ticker = yf.Ticker(ticker_sym)
                     hist = ticker.history(period="1d")
                     
                     if not hist.empty:
@@ -223,7 +225,9 @@ class PortfolioRiskManager:
             
             for _, holding in holdings_df.iterrows():
                 try:
-                    ticker = yf.Ticker(f"{holding['symbol']}.NS")
+                    _sym = str(holding['symbol']).strip()
+                    _tsym = _sym if _sym.endswith(".NS") else _sym + ".NS"
+                    ticker = yf.Ticker(_tsym)
                     hist = ticker.history(period="1y")
                     
                     if not hist.empty and len(hist) > 20:
@@ -262,7 +266,9 @@ class PortfolioRiskManager:
             
             for _, holding in holdings_df.iterrows():
                 try:
-                    ticker = yf.Ticker(f"{holding['symbol']}.NS")
+                    _sym = str(holding['symbol']).strip()
+                    _tsym = _sym if _sym.endswith(".NS") else _sym + ".NS"
+                    ticker = yf.Ticker(_tsym)
                     hist = ticker.history(period="1y")
                     
                     if not hist.empty and len(hist) > 20:
@@ -327,7 +333,9 @@ class PortfolioRiskManager:
             
             for _, holding in holdings_df.iterrows():
                 try:
-                    ticker = yf.Ticker(f"{holding['symbol']}.NS")
+                    _sym = str(holding['symbol']).strip()
+                    _tsym = _sym if _sym.endswith(".NS") else _sym + ".NS"
+                    ticker = yf.Ticker(_tsym)
                     hist = ticker.history(period="1y")
                     
                     if not hist.empty:
@@ -524,7 +532,9 @@ class PortfolioRiskManager:
             
             for _, holding in holdings_df.iterrows():
                 try:
-                    ticker = yf.Ticker(f"{holding['symbol']}.NS")
+                    _sym = str(holding['symbol']).strip()
+                    _tsym = _sym if _sym.endswith(".NS") else _sym + ".NS"
+                    ticker = yf.Ticker(_tsym)
                     hist = ticker.history(period="6mo")
                     
                     if not hist.empty and len(hist) > 20:
@@ -559,7 +569,9 @@ class PortfolioRiskManager:
             price_histories = {}
             for _, holding in holdings_df.iterrows():
                 try:
-                    ticker = yf.Ticker(f"{holding['symbol']}.NS")
+                    _sym = str(holding['symbol']).strip()
+                    _tsym = _sym if _sym.endswith(".NS") else _sym + ".NS"
+                    ticker = yf.Ticker(_tsym)
                     hist = ticker.history(start=start_str)
                     if not hist.empty:
                         price_histories[holding['symbol']] = {
