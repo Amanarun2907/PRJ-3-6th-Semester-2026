@@ -50,12 +50,9 @@ Here is what the platform does end-to-end:
 
 This is a 6th Semester B.Tech project (2026).
 
-| Name | Role |
+| Name | Batch |
 |---|---|
-| Aman Arun | Lead Developer |
-| Rohit Fogla | Backend & Data |
-| Vanshita Mehta | UI/UX & Frontend |
-| Disita Tirthani | AI & Analytics |
+| Aman Jain | B.Tech 2023–27 |
 
 GitHub: https://github.com/Amanarun2907/PRJ-3-6th-Semester-2026
 
