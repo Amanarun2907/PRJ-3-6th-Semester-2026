@@ -313,7 +313,7 @@ def show_advanced_analytics_realtime():
             
             # Display table with color coding
             st.dataframe(
-                df.style.applymap(
+                df.style.map(
                     lambda x: 'background-color: #ff5252' if x == 'High' else '',
                     subset=['Alert']
                 ),

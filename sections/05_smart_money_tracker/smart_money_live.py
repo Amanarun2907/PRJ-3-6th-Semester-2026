@@ -367,6 +367,12 @@ def show_live_smart_money_tracker():
                 "✅ Live FII/DII data — Source: **" + source + "** — "
                 "Date: **" + str(today["date"]) + "**"
             )
+            st.info(
+                "ℹ️ **Data transparency:** Row 1 shows today's real NSE data. "
+                "The remaining rows are **Nifty-proxy estimates** (calculated from Nifty 50 daily returns) "
+                "because NSE only publishes the current day's FII/DII figures via their public API. "
+                "These estimates are clearly labelled 'Estimated' in the table and shown as faded bars in the chart."
+            )
 
             # KPI cards
             c1, c2, c3, c4 = st.columns(4)

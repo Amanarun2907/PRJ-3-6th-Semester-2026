@@ -239,33 +239,79 @@ class RealtimeIPOAnalyzer:
         return final_ipos
     
     def calculate_ipo_score(self, ipo_data):
-        """Calculate IPO investment score"""
-        score = 50  # Base score
-        
-        # Adjust based on issue size
+        """
+        Calculate IPO investment score (0-100) using multiple real factors:
+        - Issue size (larger = more institutional confidence)
+        - Subscription status (open/upcoming/closed)
+        - Subscription times (if available)
+        - Category (Mainboard > SME for safety)
+        - GMP presence
+        - Price band range (tighter band = more confident pricing)
+        """
+        score = 40  # neutral base
+
+        # 1. Issue size — larger issues attract more institutional scrutiny
         try:
-            size_str = ipo_data.get('issue_size', '0')
-            size_num = float(re.findall(r'\d+', size_str)[0]) if re.findall(r'\d+', size_str) else 0
-            
-            if size_num > 1000:
-                score += 10  # Large issue
-            elif size_num > 500:
+            size_str = str(ipo_data.get('issue_size', '0')).replace(',', '')
+            nums = re.findall(r'\d+\.?\d*', size_str)
+            size_num = float(nums[0]) if nums else 0
+            if size_num >= 2000:
+                score += 20
+            elif size_num >= 1000:
+                score += 15
+            elif size_num >= 500:
+                score += 10
+            elif size_num >= 100:
                 score += 5
-        except:
+        except Exception:
             pass
-        
-        # Adjust based on status
-        if ipo_data.get('status') == 'Open':
-            score += 10
-        
-        # Adjust based on price band
+
+        # 2. Category — Mainboard IPOs have stricter SEBI requirements
+        category = str(ipo_data.get('category', '')).upper()
+        if 'MAINBOARD' in category or 'MAIN' in category:
+            score += 15
+        elif 'SME' in category:
+            score += 5  # SME = higher risk
+
+        # 3. Subscription times (if scraped)
         try:
-            price_str = ipo_data.get('price_band', '0')
-            if '₹' in price_str or 'Rs' in price_str:
+            sub_str = str(ipo_data.get('subscription', '0')).replace('x', '').replace(',', '')
+            sub_num = float(re.findall(r'\d+\.?\d*', sub_str)[0]) if re.findall(r'\d+\.?\d*', sub_str) else 0
+            if sub_num >= 50:
+                score += 20
+            elif sub_num >= 20:
+                score += 15
+            elif sub_num >= 10:
+                score += 10
+            elif sub_num >= 3:
                 score += 5
-        except:
+            elif 0 < sub_num < 1:
+                score -= 10  # undersubscribed is a red flag
+        except Exception:
             pass
-        
+
+        # 4. GMP (Grey Market Premium) — positive GMP signals demand
+        try:
+            gmp_str = str(ipo_data.get('gmp', '0')).replace('₹', '').replace(',', '').strip()
+            gmp_num = float(re.findall(r'-?\d+\.?\d*', gmp_str)[0]) if re.findall(r'-?\d+\.?\d*', gmp_str) else 0
+            if gmp_num > 50:
+                score += 10
+            elif gmp_num > 20:
+                score += 7
+            elif gmp_num > 0:
+                score += 3
+            elif gmp_num < 0:
+                score -= 10
+        except Exception:
+            pass
+
+        # 5. Status bonus — open IPOs are actionable right now
+        status = str(ipo_data.get('status', '')).lower()
+        if status == 'open':
+            score += 5
+        elif status == 'upcoming':
+            score += 3
+
         return min(100, max(0, score))
 
 

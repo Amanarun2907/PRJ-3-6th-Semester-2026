@@ -1,6 +1,6 @@
 # सार्थक निवेश - Independent Background Data Service
 # Runs 24/7 automatically, updates data every hour
-# Team: Aman Jain, Rohit Fogla, Vanshita Mehta, Disita Tirthani
+# Author: Aman Jain (B.Tech 2023-27)
 
 import schedule
 import time

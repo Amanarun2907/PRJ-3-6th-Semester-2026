@@ -1,7 +1,7 @@
 """
 🛡️ ADVANCED PORTFOLIO & RISK MANAGEMENT SYSTEM
 Real-time portfolio tracking, risk analysis, and optimization
-Team: Aman Jain, Rohit Fogla, Vanshita Mehta, Disita Tirthani
+Author: Aman Jain (B.Tech 2023-27)
 """
 
 import sqlite3
@@ -547,42 +547,53 @@ class PortfolioRiskManager:
             return None
     
     def get_portfolio_timeline(self, holdings_df):
-        """Get portfolio performance over time"""
+        """Get portfolio performance over time using a single batch fetch per stock."""
         try:
             if holdings_df.empty:
                 return None
-            
-            # Get earliest buy date
+
             earliest_date = pd.to_datetime(holdings_df['buy_date']).min()
-            
-            # Fetch historical data for all stocks
-            portfolio_timeline = []
-            dates = pd.date_range(start=earliest_date, end=datetime.now(), freq='D')
-            
-            for date in dates:
-                date_str = date.strftime('%Y-%m-%d')
-                total_value = 0
-                
-                for _, holding in holdings_df.iterrows():
-                    try:
-                        ticker = yf.Ticker(f"{holding['symbol']}.NS")
-                        hist = ticker.history(start=date_str, end=date_str)
-                        
-                        if not hist.empty:
-                            price = hist['Close'].iloc[0]
-                            value = holding['quantity'] * price
-                            total_value += value
-                    except:
-                        continue
-                
+            start_str = earliest_date.strftime('%Y-%m-%d')
+
+            # Fetch full history for every stock in ONE call each (not per-day)
+            price_histories = {}
+            for _, holding in holdings_df.iterrows():
+                try:
+                    ticker = yf.Ticker(f"{holding['symbol']}.NS")
+                    hist = ticker.history(start=start_str)
+                    if not hist.empty:
+                        price_histories[holding['symbol']] = {
+                            'closes': hist['Close'],
+                            'quantity': holding['quantity'],
+                            'buy_date': pd.to_datetime(holding['buy_date'])
+                        }
+                except Exception:
+                    continue
+
+            if not price_histories:
+                return None
+
+            # Build a combined date index
+            all_dates = sorted(set(
+                date for info in price_histories.values()
+                for date in info['closes'].index
+            ))
+
+            timeline = []
+            for date in all_dates:
+                total_value = 0.0
+                for symbol, info in price_histories.items():
+                    if date >= info['buy_date'].tz_localize(date.tzinfo) if date.tzinfo else info['buy_date']:
+                        closes = info['closes']
+                        # Get closest available price on or before this date
+                        available = closes[closes.index <= date]
+                        if not available.empty:
+                            total_value += float(available.iloc[-1]) * info['quantity']
                 if total_value > 0:
-                    portfolio_timeline.append({
-                        'date': date,
-                        'value': total_value
-                    })
-            
-            return pd.DataFrame(portfolio_timeline)
-            
+                    timeline.append({'date': date, 'value': total_value})
+
+            return pd.DataFrame(timeline) if timeline else None
+
         except Exception as e:
             print(f"❌ Timeline error: {e}")
             return None

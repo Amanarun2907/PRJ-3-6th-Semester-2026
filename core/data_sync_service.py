@@ -1,7 +1,21 @@
 """
 Data Synchronization Service
 Automatically syncs real-time data to database
+Author: Aman Jain (B.Tech 2023-27)
 """
+
+import sys
+import os
+
+# Ensure section folders are on the path when running this file standalone
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+for _sub in [
+    os.path.join(_ROOT, "sections", "07_portfolio_risk"),
+    os.path.join(_ROOT, "sections", "10_advanced_analytics"),
+    os.path.join(_ROOT, "core"),
+]:
+    if _sub not in sys.path:
+        sys.path.insert(0, _sub)
 
 from database_manager import SarthakNiveshDB
 from advanced_analytics_realtime import (

@@ -1,9 +1,15 @@
 # सार्थक निवेश - Configuration File
-# Team: Aman Jain, Rohit Fogla, Vanshita Mehta, Disita Tirthani
+# Author: Aman Jain (B.Tech 2023-27)
 
 import os
 import sys
 from datetime import datetime, timedelta
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # Ensure Unicode output works even on consoles that don't support emojis
 try:
@@ -11,10 +17,10 @@ try:
 except Exception:
     pass
 
-# API Keys
-ALPHA_VANTAGE_API_KEY = "3ZTEB9EMFP7GAAIY"
-NEWS_API_KEY = "7b3a5054a78143be90dfdc9472ed5b20"
-GROQ_API_KEY = "your_groq_api_key_here"
+# API Keys — loaded from .env, never hardcoded
+ALPHA_VANTAGE_API_KEY = os.environ.get("ALPHA_VANTAGE_API_KEY", "")
+NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 # Project Configuration
 PROJECT_NAME = "सार्थक निवेश"
@@ -199,13 +205,8 @@ PAGE_ICON = "📈"
 LAYOUT = "wide"
 
 # Team Information
-TEAM_MEMBERS = [
-    "Aman Jain",
-    "Rohit Fogla", 
-    "Vanshita Mehta",
-    "Disita Tirthani"
-]
+TEAM_MEMBERS = ["Aman Jain"]
 
 print(f"✅ Configuration loaded for {PROJECT_NAME}")
 print(f"📊 Tracking {len(STOCK_SYMBOLS)} stocks across multiple sectors")
-print(f"👥 Team: {', '.join(TEAM_MEMBERS)}")
+print(f"👤 Author: {TEAM_MEMBERS[0]}")

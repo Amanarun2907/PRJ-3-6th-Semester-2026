@@ -54,7 +54,6 @@ except ImportError:
     print("⚠️ Real-time news fetcher not available.")
 
 # Import Groq AI analyzer
-import os
 try:
     from dotenv import load_dotenv
     load_dotenv()
