@@ -1,0 +1,89 @@
+================================================================================
+                        INTERNSHIP APPLICATION - AMAN
+              AI and ML Models for Predicting Financial Stability
+                          in Emerging Markets
+              Professor : Prof. Hari Venkatesh, IIT Roorkee (HSS)
+================================================================================
+
+APPLICANT DETAILS
+-----------------
+Name        : Aman Jain
+Email       : aman.jain.23cse@bmu.edu.in
+Institute   : [BML Munjal University Gurugram]
+Program     : [B.Tech  (3rd Year)]
+Year        : [2023-27] (4  year Degree) 
+Branch      : [Computer Science Department]
+
+--------------------------------------------------------------------------------
+
+PROJECT APPLIED FOR
+-------------------
+Title   : AI and ML Models for Predicting Financial Stability in Emerging Markets
+PI      : Hari Venkatesh
+Dept    : Humanities and Social Sciences, IIT Roorkee
+Email   : hari.venkatesh@hs.iitr.ac.in
+
+--------------------------------------------------------------------------------
+
+WHY I AM A STRONG FIT
+----------------------
+
+1. HANDS-ON FINANCIAL MARKET PROJECT EXPERIENCE
+   - Currently building an AI-powered financial market intelligence platform
+   - The platform integrates real-time stock data, IPO intelligence, mutual fund
+     analytics, smart money tracking, and sentiment analysis
+   - Built ML-based recommendation systems and risk management modules
+   - Worked with live financial APIs (Yahoo Finance, NSE data feeds, news APIs)
+   - Implemented portfolio risk scoring and volatility analysis
+
+2. TECHNICAL SKILLS RELEVANT TO THIS PROJECT
+   - Languages     : Python (primary), SQL
+   - ML Libraries  : scikit-learn, pandas, NumPy, matplotlib, seaborn
+   - AI/NLP        : Sentiment analysis, Groq AI integration, LLM-based analysis
+   - Data Sources  : Real-time financial APIs, macroeconomic datasets
+   - Tools         : Streamlit (dashboard), Excel automation, data pipelines
+   - Concepts      : Time-series forecasting, anomaly detection, classification,
+                     regression, risk modeling
+
+3. ALIGNMENT WITH PROJECT GOALS
+   - Experience with financial indicators and balance sheet analysis concepts
+   - Built early-warning style alert systems for market anomalies
+   - Familiar with currency risk, liquidity metrics, and debt-related indicators
+     through practical project work
+   - Strong interest in macroeconomic modeling and emerging market dynamics
+
+--------------------------------------------------------------------------------
+
+CURRENT PROJECT SUMMARY (Financial Market Intelligence Platform)
+-----------------------------------------------------------------
+- Real-time stock intelligence with AI-driven buy/sell signals
+- IPO analysis engine with listing gain prediction
+- Mutual fund SIP optimizer and NAV tracker
+- Smart money / institutional flow tracker
+- News sentiment analyzer using NLP
+- Portfolio risk manager with stress testing
+- Agentic AI assistant for investment queries
+- Built entirely in Python with live data integration
+
+This directly maps to the professor's project which requires:
+  -> Combining macroeconomic + financial indicator data  [DONE in my project]
+  -> ML models for detecting hidden risks                [DONE - anomaly detection]
+  -> Data-driven early warning signals                   [DONE - alert systems]
+  -> Intelligent tool for researchers/policymakers       [DONE - dashboard UI]
+
+--------------------------------------------------------------------------------
+
+WHAT I HOPE TO CONTRIBUTE TO THE RESEARCH
+------------------------------------------
+- Extend my existing financial ML pipeline to sovereign/macroeconomic data
+- Apply classification and regression models to predict country-level stress
+- Work on balance sheet vulnerability indicators (debt-to-GDP, FX reserves, etc.)
+- Help build the data collection and preprocessing pipeline
+- Contribute to model evaluation, visualization, and reporting
+
+--------------------------------------------------------------------------------
+
+
+================================================================================
+                            END OF DOCUMENT
+================================================================================

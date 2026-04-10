@@ -4,6 +4,27 @@ Complete Investment Intelligence Platform
 50+ Stocks | 50+ Mutual Funds | Professional Dark Theme | 100% Dynamic
 """
 
+import sys
+import os
+
+# ── Add all section folders to path so imports work after reorganisation ──────
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+_SECTION_PATHS = [
+    os.path.join(_ROOT, "sections", "02_stock_intelligence"),
+    os.path.join(_ROOT, "sections", "03_mutual_fund_sip"),
+    os.path.join(_ROOT, "sections", "04_ipo_intelligence"),
+    os.path.join(_ROOT, "sections", "05_smart_money_tracker"),
+    os.path.join(_ROOT, "sections", "06_agentic_ai_hub"),
+    os.path.join(_ROOT, "sections", "07_portfolio_risk"),
+    os.path.join(_ROOT, "sections", "08_news_sentiment"),
+    os.path.join(_ROOT, "sections", "09_ai_assistant"),
+    os.path.join(_ROOT, "sections", "10_advanced_analytics"),
+    os.path.join(_ROOT, "core"),
+]
+for _p in _SECTION_PATHS:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 import streamlit as st
 import pandas as pd
 import numpy as np
