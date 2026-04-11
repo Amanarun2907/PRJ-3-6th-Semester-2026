@@ -35,7 +35,7 @@ load_dotenv(_ROOT / ".env")
 from routers import (
     dashboard, stocks, mutual_funds, sip_goals,
     ipo, smart_money, portfolio, news,
-    ai_assistant, analytics
+    ai_assistant, analytics, agentic
 )
 
 app = FastAPI(
@@ -62,6 +62,7 @@ app.include_router(portfolio.router,    prefix="/api/portfolio",    tags=["Portf
 app.include_router(news.router,         prefix="/api/news",         tags=["News"])
 app.include_router(ai_assistant.router, prefix="/api/ai",           tags=["AI"])
 app.include_router(analytics.router,    prefix="/api/analytics",    tags=["Analytics"])
+app.include_router(agentic.router,      prefix="/api/agentic",      tags=["Agentic AI"])
 
 @app.get("/")
 def root():

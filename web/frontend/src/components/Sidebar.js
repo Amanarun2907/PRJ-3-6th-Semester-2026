@@ -9,8 +9,9 @@ const NAV = [
   { id: 'smartmoney', label: 'Smart Money',         icon: '🏦', desc: 'FII/DII tracker' },
   { id: 'portfolio',  label: 'Portfolio & Risk',    icon: '🛡️', desc: 'P&L + risk metrics' },
   { id: 'coach',      label: 'AI Finance Coach',    icon: '🧠', desc: 'Explain my portfolio' },
+  { id: 'agentic',    label: 'Agentic AI Hub',      icon: '🤖', desc: '6 agents · Full report' },
   { id: 'news',       label: 'News & Sentiment',    icon: '📰', desc: 'Live RSS + VADER' },
-  { id: 'assistant',  label: 'AI Assistant',        icon: '🤖', desc: 'Groq Llama 3.3 70B' },
+  { id: 'assistant',  label: 'AI Assistant',        icon: '💬', desc: 'Groq Llama 3.3 70B' },
   { id: 'analytics',  label: 'Advanced Analytics',  icon: '📈', desc: 'Heatmaps & correlation' },
 ];
 

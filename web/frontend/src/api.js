@@ -32,7 +32,9 @@ export const sip = {
 };
 
 export const ipo = {
-  live: () => api.get('/api/ipo/live'),
+  live:       () => api.get('/api/ipo/live'),
+  detail:     (url) => api.get('/api/ipo/detail', { params: { url } }),
+  aiAnalysis: (url, name) => api.get('/api/ipo/ai_analysis', { params: { url, name } }),
 };
 
 export const smartMoney = {
@@ -64,6 +66,10 @@ export const analytics = {
   correlation:   (period) => api.get('/api/analytics/correlation', { params: { period: period||'3mo' } }),
   volumeAnalysis:()       => api.get('/api/analytics/volume_analysis'),
   marketBreadth: ()       => api.get('/api/analytics/market_breadth'),
+};
+
+export const agenticAI = {
+  run: (query, agents) => api.post('/api/agentic/run', { query, agents }, { timeout: 180000 }),
 };
 
 export default api;

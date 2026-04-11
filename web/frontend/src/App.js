@@ -12,6 +12,7 @@ import AIFinanceCoach from './pages/AIFinanceCoach';
 import NewsAndSentiment from './pages/NewsAndSentiment';
 import AIAssistant from './pages/AIAssistant';
 import AdvancedAnalytics from './pages/AdvancedAnalytics';
+import AgenticAI from './pages/AgenticAI';
 
 const PAGES = {
   dashboard:  Dashboard,
@@ -25,6 +26,7 @@ const PAGES = {
   news:       NewsAndSentiment,
   assistant:  AIAssistant,
   analytics:  AdvancedAnalytics,
+  agentic:    AgenticAI,
 };
 
 export default function App() {

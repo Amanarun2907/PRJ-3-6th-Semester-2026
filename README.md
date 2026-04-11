@@ -23,10 +23,11 @@ This platform solves all of that — for free.
 It gives you the same tools that professional investors use:
 - Live stock prices and charts for 50+ NSE stocks
 - 2400+ mutual fund NAVs updated daily from AMFI
-- Live IPO data with scoring — should you apply or avoid?
+- Live IPO data with scoring, financials, peer comparison, and AI exit strategy
 - FII/DII tracker — what are big institutions buying today?
-- AI that explains your portfolio losses in plain Hindi or English
-- SIP calculator that accounts for inflation and recommends real funds
+- AI Finance Coach that explains your portfolio losses in plain Hindi or English
+- SIP Goal Planner with inflation-adjusted targets and live fund recommendations
+- Agentic AI Hub — 6 specialist AI agents that collaborate to give a complete investment report
 - News with sentiment analysis — is the market mood positive or negative?
 
 ---
@@ -38,7 +39,7 @@ It gives you the same tools that professional investors use:
 3. [Run the Streamlit App](#3-run-the-streamlit-app-option-a)
 4. [Run the React Website](#4-run-the-react-website-option-b)
 5. [Project Folder Structure](#5-project-folder-structure)
-6. [All 12 Features Explained](#6-all-12-features-explained)
+6. [All 13 Features Explained](#6-all-13-features-explained)
 7. [Data Sources](#7-data-sources)
 8. [Technology Stack](#8-technology-stack)
 9. [API Keys Setup](#9-api-keys-setup)
@@ -58,9 +59,9 @@ This project has **two separate interfaces** that share the same data and logic:
 | How to run | `streamlit run main_ultimate_final.py` | Backend + Frontend separately |
 | Best for | Quick use, development | Hackathon demo, public sharing |
 | Port | 8501 | Frontend: 3000, Backend: 8000 |
-| Features | All 12 modules | All 12 modules |
+| Features | All 13 modules | All 13 modules |
 
-Both use 100% real-time data. Neither has dummy or fake data.
+Both use 100% real-time data. Neither has dummy or fake data anywhere.
 
 ---
 
@@ -78,7 +79,7 @@ GitHub: https://github.com/Amanarun2907/PRJ-3-6th-Semester-2026
 
 ## 3. Run the Streamlit App (Option A)
 
-This is the simplest way to run the project. You only need Python.
+This is the simplest way. You only need Python.
 
 ### Step 1 — Download the project
 
@@ -87,107 +88,73 @@ git clone https://github.com/Amanarun2907/PRJ-3-6th-Semester-2026.git
 cd PRJ-3-6th-Semester-2026
 ```
 
-### Step 2 — Create a virtual environment
-
-A virtual environment keeps this project's packages separate from your system Python.
+### Step 2 — Create and activate virtual environment
 
 ```bash
 python -m venv .venv
-```
 
-### Step 3 — Activate the virtual environment
-
-```bash
 # Windows
 .venv\Scripts\activate
 
-# Mac or Linux
+# Mac / Linux
 source .venv/bin/activate
 ```
 
-You will see `(.venv)` appear at the start of your terminal line. That means it worked.
-
-### Step 4 — Install all required packages
+### Step 3 — Install packages
 
 ```bash
 pip install -r core/requirements.txt
 ```
 
-This installs everything the project needs (Streamlit, yfinance, pandas, etc.). It takes 2-3 minutes.
+### Step 4 — Add your Groq API key
 
-### Step 5 — Add your Groq API key (free)
-
-The AI features need a Groq API key. Get one free at https://console.groq.com (no credit card needed).
-
-Open the `.env` file in the root folder and add your key:
-
+Open the `.env` file and add:
 ```
 GROQ_API_KEY=your_key_here
 ```
+Get a free key at https://console.groq.com (no credit card needed).
 
-The app works without this key too — the AI assistant will use a rule-based fallback.
-
-### Step 6 — Run the app
+### Step 5 — Run
 
 ```bash
 streamlit run main_ultimate_final.py
 ```
 
-The app opens automatically at **http://localhost:8501**
+Opens at **http://localhost:8501**
 
 ---
 
 ## 4. Run the React Website (Option B)
 
-The React website has two parts — a Python backend (FastAPI) and a React frontend. You need to run both at the same time in two separate terminals.
+You need Python and Node.js (https://nodejs.org).
 
-### Requirements
-
-- Python 3.10 or higher
-- Node.js 18 or higher (download from https://nodejs.org)
-
-### Terminal 1 — Start the Backend
+### Terminal 1 — Backend
 
 ```bash
-cd "C:\Users\YourName\path\to\PRJ-3\web\backend"
+cd web/backend
 pip install -r requirements.txt
 python -m uvicorn main:app --reload --port 8000
 ```
 
-Wait until you see:
-```
-INFO:     Uvicorn running on http://127.0.0.1:8000
-INFO:     Application startup complete.
-```
+Wait for: `Application startup complete.`
 
-### Terminal 2 — Start the Frontend
-
-Open a second terminal (keep Terminal 1 running):
+### Terminal 2 — Frontend
 
 ```bash
-cd "C:\Users\YourName\path\to\PRJ-3\web\frontend"
+cd web/frontend
 npm install
 npm start
 ```
 
-Wait until you see:
-```
-Compiled successfully!
-Local: http://localhost:3000
-```
+Wait for: `Compiled successfully!`
 
-### Open the website
+### Open browser
 
-Go to **http://localhost:3000** in your browser.
+Go to **http://localhost:3000**
 
-> Both terminals must stay open. If you close either one, the website stops working.
+Both terminals must stay open. The backend runs on port 8000, frontend on port 3000.
 
-### What the warnings mean (safe to ignore)
-
-When running `npm start` you may see these — they are NOT errors:
-- `Failed to parse source map` — harmless plotly.js warning
-- `Proxy error: Could not proxy /favicon.ico` — browser requesting an icon, not a real error
-- `DeprecationWarning` — old webpack internal warning, does not affect the app
+> The warnings you see (`Failed to parse source map`, `Proxy error: favicon.ico`) are harmless. They do not affect the app.
 
 ---
 
@@ -196,139 +163,180 @@ When running `npm start` you may see these — they are NOT errors:
 ```
 PRJ-3-6th-Semester-2026/
 |
-|-- main_ultimate_final.py        <- Streamlit app entry point. Run this for Option A.
+|-- main_ultimate_final.py        <- Streamlit app. Run this for Option A.
 |-- .env                          <- Your API keys (never pushed to GitHub)
-|-- README.md                     <- This file
+|-- README.md
 |
-|-- sections/                     <- All feature modules for Streamlit
-|   |-- 02_stock_intelligence/    <- Stock charts, RSI, MACD, Bollinger Bands
-|   |-- 03_mutual_fund_sip/       <- 2400+ live funds + SIP Goal Planner
-|   |-- 04_ipo_intelligence/      <- Live IPO data + scoring
-|   |-- 05_smart_money_tracker/   <- FII/DII from NSE API
-|   |-- 06_agentic_ai_hub/        <- Multi-agent AI system
-|   |-- 07_portfolio_risk/        <- Portfolio P&L + AI Finance Coach
-|   |-- 08_news_sentiment/        <- Live news + sentiment analysis
-|   |-- 09_ai_assistant/          <- Groq AI chat
-|   `-- 10_advanced_analytics/    <- Sector heatmaps, correlation
+|-- sections/                     <- Streamlit feature modules
+|   |-- 02_stock_intelligence/
+|   |-- 03_mutual_fund_sip/
+|   |   |-- sip_goal_planner.py   <- SIP Goal Planner with live AMFI data
+|   |-- 04_ipo_intelligence/
+|   |-- 05_smart_money_tracker/
+|   |-- 06_agentic_ai_hub/
+|   |-- 07_portfolio_risk/
+|   |   |-- explain_my_loss.py    <- AI Finance Coach
+|   |-- 08_news_sentiment/
+|   |-- 09_ai_assistant/
+|   `-- 10_advanced_analytics/
 |
 |-- web/                          <- React website (Option B)
 |   |-- backend/                  <- FastAPI Python server
 |   |   |-- main.py               <- API entry point
-|   |   |-- routers/              <- One file per feature module
-|   |   `-- requirements.txt      <- Backend Python packages
+|   |   |-- routers/
+|   |   |   |-- dashboard.py      <- NIFTY, SENSEX, gainers, losers
+|   |   |   |-- stocks.py         <- OHLCV, technicals, fundamentals
+|   |   |   |-- mutual_funds.py   <- Live AMFI NAV + mfapi.in returns
+|   |   |   |-- sip_goals.py      <- SIP calculator + AI advice
+|   |   |   |-- ipo.py            <- Live IPO data + AI exit strategy
+|   |   |   |-- smart_money.py    <- FII/DII from NSE API
+|   |   |   |-- portfolio.py      <- Portfolio P&L + risk metrics
+|   |   |   |-- news.py           <- RSS feeds + VADER sentiment
+|   |   |   |-- ai_assistant.py   <- Groq chat + AI Finance Coach
+|   |   |   |-- analytics.py      <- Sector heatmap, correlation, breadth
+|   |   |   `-- agentic.py        <- 6 specialist agents + master report
+|   |   `-- requirements.txt
 |   `-- frontend/                 <- React app
 |       |-- src/
-|       |   |-- pages/            <- One page per module
-|       |   |-- components/       <- Reusable UI components
-|       |   `-- api.js            <- All API calls in one place
-|       `-- package.json          <- Frontend packages
+|       |   |-- pages/            <- One page per module (13 pages)
+|       |   |-- components/       <- Sidebar, PlotlyChart
+|       |   `-- api.js            <- All API calls
+|       `-- package.json
 |
-|-- core/                         <- Shared config and utilities
-|   |-- config.py                 <- Stock universe, API keys, paths
-|   `-- requirements.txt          <- Streamlit app Python packages
+|-- core/                         <- Shared config
+|   |-- config.py
+|   `-- requirements.txt          <- Streamlit app packages
 |
 |-- data/                         <- SQLite database (auto-created)
-|   `-- sarthak_nivesh.db         <- Your portfolio and goals are stored here
+|   `-- sarthak_nivesh.db
 |
-`-- exports/                      <- Excel/CSV exports land here
+`-- exports/                      <- Excel/CSV exports
 ```
 
 ---
 
-## 6. All 12 Features Explained
+## 6. All 13 Features Explained
 
 ### 1. Live Market Dashboard
-The home screen. Shows NIFTY 50 and SENSEX live prices, top 5 gainers, top 5 losers, and market breadth (how many stocks are up vs down today). All data is fetched live from Yahoo Finance every time you load the page.
+The home screen. Shows NIFTY 50 and SENSEX live prices with point change, top 5 gainers, top 5 losers, and market breadth (how many stocks are up vs down). All data is live from Yahoo Finance.
 
 ### 2. Stock Intelligence
 Pick any of 50+ NSE stocks and see:
-- Candlestick price chart with MA20, MA50, MA200 lines
-- RSI indicator (above 70 = overbought, below 30 = oversold)
-- MACD chart (shows momentum direction)
-- Bollinger Bands (shows price volatility)
-- A BUY / HOLD / SELL signal based on all indicators combined
-- Fundamental data: P/E ratio, market cap, 52-week high/low
+- Candlestick chart with MA20, MA50, MA200 overlaid
+- RSI (overbought/oversold zones highlighted)
+- MACD with histogram
+- Bollinger Bands
+- BUY / HOLD / SELL signal from combined indicators
+- Fundamental data: P/E, market cap, 52-week high/low, dividend yield
 
 ### 3. Mutual Fund Center
-Browse 2400+ real mutual funds fetched live from AMFI (India's official mutual fund body). See live NAV, 1-year and 3-year returns, expense ratio. Click any fund to see its NAV history chart for the past year.
+Browse 2400+ real mutual funds from AMFI. See live NAV, 1Y/3Y returns, expense ratio. Click any fund to see its 1-year NAV history chart.
 
 ### 4. SIP Goal Planner
-Tell the planner your goal (child's education, home, retirement, etc.), how many years you have, and the inflation rate. It:
-- Calculates how much more you'll need due to inflation
-- Fetches real 3-year returns from live AMFI data
-- Tells you exactly how much to invest per month for Conservative, Moderate, and Aggressive profiles
-- Recommends the best real mutual funds for your profile
-- Gets Groq AI to write a personalized financial plan for you
-- Saves your goals to the database
+The most practical feature for common investors. You tell it:
+- Your goal (child's education, home, retirement, etc.)
+- How many years you have
+- Inflation rate
+
+It calculates how much more you'll need due to inflation, fetches real 3-year returns from live AMFI data, tells you exactly how much to invest monthly for Conservative/Moderate/Aggressive profiles, recommends the best real mutual funds, and gets Groq AI to write a personalised financial plan. Saves goals to the database.
 
 ### 5. IPO Intelligence Hub
-Live IPO data scraped from ipowatch.in. Shows all Open, Upcoming, and Closed IPOs with:
-- Price band, issue size, open/close dates
-- A score from 0-100 based on issue size, category (Mainboard vs SME), subscription, and GMP
+The most advanced IPO analysis tool available for free. For every IPO it shows:
+- Live data from ipowatch.in (Open/Upcoming/Closed status)
+- IPO score 0-100 based on issue size, category, subscription, GMP, financials
 - APPLY / NEUTRAL / AVOID recommendation
-- Charts: score distribution, status breakdown, category analysis
+- Click any IPO card to open a full analysis modal with:
+  - Financial KPIs: ROE, ROCE, EBITDA Margin, PAT Margin, Debt/Equity, EPS, P/E, RoNW, NAV
+  - Revenue and PAT history (3-4 years)
+  - Peer comparison table
+  - Promoter holding pre and post issue
+  - Use of IPO proceeds
+  - Investor allocation (QIB/NII/Retail %)
+  - IPO Quality Radar chart
+  - **AI Exit Strategy** — Groq AI tells you: should you apply, sell on listing day or hold, what % gain to target on listing, 30/60/90 day price targets, recommended split (e.g. sell 50% on listing, hold 50% for 90 days), and stop loss level
 
 ### 6. Smart Money Tracker
-Tracks what Foreign Institutional Investors (FII) and Domestic Institutional Investors (DII) are doing. Data comes directly from NSE's official API. When FIIs are buying heavily, it usually means the market will go up. When they sell, it often signals a fall.
+Tracks what Foreign Institutional Investors (FII) and Domestic Institutional Investors (DII) are doing. Data comes directly from NSE's official API. Shows FII/DII net flows, bulk deals, block deals, and sector-wise money flow.
 
 ### 7. Portfolio & Risk Manager
-Add your own stocks with buy price and quantity. The app fetches live prices and shows:
-- Real-time profit/loss for each holding
-- Portfolio allocation pie chart
-- P&L bar charts
-- Export to Excel
+Add your own stocks with buy price and quantity. The app fetches live prices and shows real-time P&L, portfolio allocation pie chart, and P&L bar charts.
 
 ### 8. AI Finance Coach — Explain My Portfolio
-This is the most unique feature. Click one button and the AI:
+The most emotionally intelligent feature. Click one button and the AI:
 1. Reads your actual portfolio from the database
-2. Fetches today's live price changes for every stock you hold
+2. Fetches today's live price changes for every stock
 3. Gets FII/DII data from NSE
 4. Reads live sector performance
 5. Fetches today's market news
 6. Sends all of it to Groq Llama 3.3 70B
-7. Gets back a plain-language explanation: "Your portfolio is down 2.3% today mainly because HDFC Bank fell after RBI's rate decision. FIIs sold ₹2,800 Cr. This is temporary."
-Works in Hindi and English.
+7. Returns a plain-language explanation in Hindi or English: "Your portfolio is down 2.3% today mainly because HDFC Bank fell after RBI's rate decision. FIIs sold ₹2,800 Cr. This is temporary."
 
-### 9. News & Sentiment Analysis
-Live financial news from Economic Times, Moneycontrol, and Google Finance RSS feeds. Each headline is scored for sentiment (Positive/Negative/Neutral) using TextBlob and VADER. Shows a sector-wise sentiment heatmap.
+### 9. Agentic AI Investment Hub
+The most powerful feature. 6 specialist AI agents run simultaneously, each fetching live data from their domain, then a Master Agent synthesises everything into a complete investment report.
 
-### 10. AI Investment Assistant
-A chat interface powered by Groq Llama 3.3 70B. Ask anything about Indian stocks, mutual funds, IPOs, or investment strategy. Has quick-action buttons for common questions.
+**The 6 agents:**
+- Stock Intelligence Agent — live prices, RSI, MACD, BUY/SELL signals for 20 stocks
+- Market Analysis Agent — NIFTY, SENSEX, 8-sector performance
+- Smart Money Agent — live FII/DII flows from NSE API
+- News & Sentiment Agent — live RSS headlines + VADER sentiment scoring
+- Risk Management Agent — volatility, VaR(95%), correlation matrix
+- Advanced Analytics Agent — volume anomalies, sector rotation, momentum
 
-### 11. Advanced Analytics
+**The Master Report includes:**
+- Executive Summary
+- Top 3 Investment Opportunities with reasoning
+- Key Risks to Watch
+- Smart Money Signal interpretation
+- Recommended Action Plan (3 concrete steps)
+- Confidence Level
+
+**Sample queries to try:**
+- "Analyse the current Indian stock market and tell me where to invest today"
+- "Which stocks should I buy this week based on technicals and FII activity?"
+- "Give me a complete weekly market intelligence report with top 3 recommendations"
+
+### 10. News & Sentiment Analysis
+Live financial news from Economic Times, Moneycontrol, and Google Finance RSS. Each headline is scored for sentiment using TextBlob and VADER. Shows a sector-wise sentiment heatmap and sentiment timeline chart.
+
+### 11. AI Investment Assistant
+A chat interface powered by Groq Llama 3.3 70B. Ask anything about Indian stocks, mutual funds, IPOs, or investment strategy. Has 10 quick-action buttons for common questions.
+
+### 12. Advanced Analytics
 - Sector heatmap: which sectors are up/down today
-- Correlation matrix: how correlated are different stocks (useful for diversification)
-- Volume intelligence: which stocks have unusual trading volume
-- Market breadth gauge
+- Correlation matrix: how correlated are different stocks
+- Volume intelligence: unusual volume activity detection
+- Market breadth gauge with A/D ratio
 
-### 12. Agentic AI Hub
-A multi-agent AI system where specialised agents (Research, Analysis, Risk, Portfolio, News) collaborate to answer complex investment questions.
+### 13. Agentic AI Hub (Streamlit version)
+The Streamlit version also has a multi-agent AI system in `sections/06_agentic_ai_hub/` that works similarly to the React version.
 
 ---
 
 ## 7. Data Sources
 
-| What | Where it comes from | How often updated |
+| What | Where it comes from | How often |
 |---|---|---|
-| Stock prices (50+ stocks) | Yahoo Finance | Every 5 minutes |
-| NIFTY 50 / SENSEX | Yahoo Finance | Every 5 minutes |
-| Mutual fund NAV (2400+) | AMFI official NAV file | Once daily (after 8 PM IST) |
+| Stock prices (50+ stocks) | Yahoo Finance (yfinance) | Every 5 min |
+| NIFTY 50 / SENSEX | Yahoo Finance (`^NSEI`, `^BSESN`) | Every 5 min |
+| Mutual fund NAV (2400+) | AMFI official NAV file | Daily after 8 PM IST |
 | Mutual fund returns | mfapi.in (NAV history) | Live on request |
-| IPO data | ipowatch.in | Live on request |
+| IPO data + details | ipowatch.in (scraped) | Live on request |
 | FII/DII flows | NSE India official API | Daily |
-| Financial news | ET, Moneycontrol, Google Finance RSS | Every 10 minutes |
+| Bulk/Block deals | NSE India official API | Daily |
+| Financial news | ET, Moneycontrol, Google Finance RSS | Every 10 min |
 | AI responses | Groq API (Llama 3.3 70B) | On demand |
+| Portfolio data | User's local SQLite DB | Real-time |
 
-**Important:** All data is fetched live at runtime. There is no pre-downloaded or fake data anywhere in this project.
+**Zero dummy data.** Everything is fetched live at runtime.
 
 ---
 
 ## 8. Technology Stack
 
-### Streamlit App (Option A)
-| What | Technology |
+### Streamlit App
+| Layer | Technology |
 |---|---|
-| UI Framework | Streamlit |
+| UI | Streamlit |
 | Charts | Plotly |
 | Stock data | yfinance |
 | Mutual fund data | AMFI NAV file + mfapi.in |
@@ -337,55 +345,54 @@ A multi-agent AI system where specialised agents (Research, Analysis, Risk, Port
 | Database | SQLite |
 | Language | Python 3.10+ |
 
-### React Website (Option B)
-| What | Technology |
+### React Website
+| Layer | Technology |
 |---|---|
-| Frontend | React 18 + Plotly.js |
+| Frontend | React 18 |
+| Charts | Plotly.js (interactive) |
 | Backend | FastAPI (Python) |
 | Styling | Custom CSS (dark glassmorphism) |
-| Charts | Plotly.js (interactive) |
 | API calls | Axios |
 | Notifications | react-hot-toast |
+| Web scraping | BeautifulSoup4 |
 
 ---
 
 ## 9. API Keys Setup
 
-The project needs one API key to unlock AI features. Everything else works without any key.
+Only one key is needed. Everything else works without any key.
 
-### Groq API Key (free)
+### Groq API Key (free, no credit card)
 
 1. Go to https://console.groq.com
-2. Sign up (free, no credit card)
-3. Create an API key
-4. Open the `.env` file in the root folder
-5. Add this line:
+2. Sign up and create an API key
+3. Open the `.env` file in the root folder
+4. Add this line:
 
 ```
-GROQ_API_KEY=your_key_here
+GROQ_API_KEY=gsk_your_key_here
 ```
 
-The key starts with `gsk_`. Without it, the AI assistant uses a rule-based fallback and still works — just without the LLM responses.
-
-### Where the .env file is
-
-```
-PRJ-3-6th-Semester-2026/
-|-- .env          <- Edit this file
-```
-
-The `.env` file is in `.gitignore` so your key is never pushed to GitHub.
+Without this key:
+- AI Finance Coach uses rule-based fallback
+- IPO AI analysis shows "API key not configured"
+- Agentic AI Hub shows placeholder text
+- SIP AI advice is skipped
 
 ---
 
 ## 10. Database
 
-The app automatically creates a SQLite database at `data/sarthak_nivesh.db` the first time you run it. You don't need to set anything up.
+The app automatically creates `data/sarthak_nivesh.db` on first run.
 
-What gets saved:
-- Your portfolio holdings (stocks you add in Portfolio Manager)
-- Your SIP goals (goals you save in SIP Goal Planner)
-- Price alert settings
+| Table | What it stores |
+|---|---|
+| `portfolio_holdings` | Your stocks (symbol, buy price, quantity, date, sector) |
+| `sip_goals` | Your SIP goals (target, years, inflation, monthly SIP, risk profile) |
+| `stock_data` | Historical price snapshots |
+| `sector_performance` | Sector % change history |
+| `news_sentiment` | News articles with sentiment scores |
+| `market_breadth` | Daily advancing/declining counts |
 
 The database file is gitignored — your personal data never goes to GitHub.
 
@@ -393,45 +400,49 @@ The database file is gitignored — your personal data never goes to GitHub.
 
 ## 11. Common Problems and Fixes
 
-**Problem: `npm start` gives "package.json not found"**
-You are in the wrong folder. Run this first:
+**`npm start` gives "package.json not found"**
+You are in the wrong folder. Run:
 ```bash
 cd web/frontend
 npm start
 ```
 
-**Problem: `uvicorn main:app` gives "cannot import module main"**
-You are in the wrong folder. Run this first:
+**`uvicorn main:app` gives "cannot import module main"**
+You are in the wrong folder. Run:
 ```bash
 cd web/backend
 python -m uvicorn main:app --reload --port 8000
 ```
 
-**Problem: Dashboard shows no data / empty charts**
-The backend is not running. Make sure Terminal 1 (backend) is running before opening the website.
+**Dashboard shows no data / empty charts**
+The backend is not running. Start Terminal 1 (backend) first, then open the website.
 
-**Problem: NIFTY/SENSEX shows 0**
-Yahoo Finance occasionally rate-limits requests. Wait 1-2 minutes and click Refresh.
-
-**Problem: Mutual funds show "No data"**
-AMFI updates their NAV file once per day after 8 PM IST. If you run before that, the previous day's data shows. If AMFI is down, you'll see an error.
-
-**Problem: AI gives no response**
-Check that your `GROQ_API_KEY` is in the `.env` file and starts with `gsk_`.
-
-**Problem: Port 8501 already in use (Streamlit)**
+**IPO modal shows all N/A**
+This is fixed in the latest version. Pull the latest code:
 ```bash
-streamlit run main_ultimate_final.py --server.port 8502
+git pull origin master
 ```
 
-**Problem: Port 8000 already in use (FastAPI)**
+**NIFTY/SENSEX shows 0**
+Yahoo Finance rate-limits occasionally. Wait 1-2 minutes and click Refresh.
+
+**Mutual funds show "No data"**
+AMFI updates their NAV file once per day after 8 PM IST. If AMFI is temporarily down, you'll see an error.
+
+**AI gives no response**
+Check that `GROQ_API_KEY` is in the `.env` file and starts with `gsk_`.
+
+**Agentic AI Hub takes too long**
+It runs 6 agents + 7 Groq API calls. This takes 60-120 seconds. This is normal — it's doing real work.
+
+**Port already in use**
 ```bash
+# Streamlit
+streamlit run main_ultimate_final.py --server.port 8502
+
+# FastAPI
 python -m uvicorn main:app --reload --port 8001
 ```
-Then update `web/frontend/src/api.js` line 3 to use port 8001.
-
-**Problem: First load is very slow**
-Normal. The first load fetches live data from multiple sources. After that, Streamlit's caching makes it fast. Expect 15-30 seconds on first load.
 
 ---
 
@@ -442,6 +453,7 @@ This platform is built for **educational purposes** as part of a B.Tech academic
 - Nothing on this platform is financial advice
 - Stock prices, NAVs, and IPO data are fetched from public sources and may have delays
 - Past returns shown for mutual funds do not guarantee future performance
+- The IPO AI exit strategy is for educational purposes only — actual returns depend on market conditions
 - Always consult a SEBI-registered financial advisor before making investment decisions
 - The developers are not responsible for any financial decisions made based on this platform
 
