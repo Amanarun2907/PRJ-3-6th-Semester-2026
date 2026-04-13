@@ -699,23 +699,30 @@ def get_detail(url: str = Query(...)):
 
 @router.get("/ai_analysis")
 def get_ai_analysis(url: str = Query(...), name: str = Query("")):
-    """Fetch detail + AI recommendation for one IPO."""
-    # Get base IPO data
+    """Fetch detail + quantitative exit strategy + AI recommendation for one IPO."""
+    # Get base IPO data from list
     ipos = _fetch_ipowatch_list()
-    ipo = next((i for i in ipos if i.get("detail_url") == url), None)
+    ipo  = next((i for i in ipos if i.get("detail_url") == url), None)
     if not ipo:
-        ipo = {"name": name, "category": "Unknown", "status": "Unknown",
-               "price_band": "N/A", "issue_size": "N/A", "score": 50,
-               "recommendation": "NEUTRAL"}
-    # Enrich with detail page
+        ipo = {
+            "name": name, "category": "Unknown", "status": "Unknown",
+            "price_band": "N/A", "issue_size": "N/A", "score": 50,
+            "recommendation": "NEUTRAL", "financials": [], "peers": [],
+            "objects_of_issue": [], "investor_categories": [],
+        }
+    # Enrich with full detail page scrape
     detail = _fetch_detail(url)
     ipo.update(detail)
+    # Recalculate score with enriched data
     ipo["score"] = _score(ipo)
     ipo["recommendation"] = (
         "APPLY"   if ipo["score"] >= 65 else
         "AVOID"   if ipo["score"] < 45 else
         "NEUTRAL"
     )
-    # AI recommendation
-    ipo["ai_analysis"] = _ai_recommend(ipo)
+    # Compute stock-specific quantitative exit strategy
+    exit_strategy = _compute_exit_strategy(ipo)
+    ipo["exit_strategy"] = exit_strategy
+    # AI reasoning on top of computed numbers
+    ipo["ai_analysis"] = _ai_recommend(ipo, exit_strategy)
     return ipo
