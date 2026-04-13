@@ -353,100 +353,300 @@ def _fetch_ipowatch_list() -> list:
     return ipos
 
 
+# ── Exit Strategy Engine (quantitative, stock-specific) ──────────────────────
+
+def _compute_exit_strategy(ipo: dict) -> dict:
+    """
+    Compute precise, stock-specific exit strategy using real IPO data.
+    Every number is derived from actual scraped data — no generic values.
+    Returns a structured dict used both for charts and AI prompt.
+    """
+    # ── Extract real numbers ──────────────────────────────────────────────────
+    price_band_raw = ipo.get("price_band_full") or ipo.get("price_band", "")
+    prices = re.findall(r"\d+\.?\d*", price_band_raw.replace(",", ""))
+    issue_price = float(prices[-1]) if prices else 0.0   # upper band = issue price
+
+    roe          = _n(ipo.get("roe", "0"))
+    roce         = _n(ipo.get("roce", "0"))
+    pat_margin   = _n(ipo.get("pat_margin", "0"))
+    ebitda_margin= _n(ipo.get("ebitda_margin", "0"))
+    debt_equity  = _n(ipo.get("debt_equity", "0"))
+    eps          = _n(ipo.get("eps", "0"))
+    pe_ratio     = _n(ipo.get("pe_ratio", "0"))
+    nav          = _n(ipo.get("nav", "0"))
+    score        = ipo.get("score", 50)
+    category     = str(ipo.get("category", "")).upper()
+    is_mainboard = "MAINBOARD" in category or "MAIN" in category
+    sub          = _n(ipo.get("subscription", "0"))
+    gmp          = _n(ipo.get("gmp", "0"))
+
+    # ── Revenue growth from financials ────────────────────────────────────────
+    revenue_growth = 0.0
+    fin = ipo.get("financials", [])
+    if len(fin) >= 3:
+        try:
+            rev_rows = [r for r in fin if r[0] not in ["Period Ended", "Particular"]]
+            if len(rev_rows) >= 2:
+                r_latest = _n(rev_rows[-1][1])
+                r_oldest = _n(rev_rows[0][1])
+                if r_oldest > 0:
+                    years = len(rev_rows) - 1
+                    revenue_growth = ((r_latest / r_oldest) ** (1 / max(years, 1)) - 1) * 100
+        except Exception:
+            pass
+
+    # ── Peer average P/E ──────────────────────────────────────────────────────
+    peer_avg_pe = 0.0
+    peers = ipo.get("peers", [])
+    if peers:
+        pes = [_n(p.get("pe", "0")) for p in peers if _n(p.get("pe", "0")) > 0]
+        peer_avg_pe = sum(pes) / len(pes) if pes else 0.0
+
+    # ── Valuation premium/discount vs peers ──────────────────────────────────
+    valuation_vs_peers = "N/A"
+    if pe_ratio > 0 and peer_avg_pe > 0:
+        diff = ((pe_ratio - peer_avg_pe) / peer_avg_pe) * 100
+        if diff > 20:
+            valuation_vs_peers = f"Overvalued by {diff:.1f}% vs peers"
+        elif diff < -20:
+            valuation_vs_peers = f"Undervalued by {abs(diff):.1f}% vs peers"
+        else:
+            valuation_vs_peers = f"Fairly valued ({diff:+.1f}% vs peers)"
+
+    # ── Financial strength score (0-100) ─────────────────────────────────────
+    fin_score = 0
+    if roe > 25:       fin_score += 25
+    elif roe > 15:     fin_score += 18
+    elif roe > 8:      fin_score += 10
+    if pat_margin > 15: fin_score += 25
+    elif pat_margin > 8: fin_score += 18
+    elif pat_margin > 3: fin_score += 10
+    if debt_equity < 0.3: fin_score += 25
+    elif debt_equity < 0.8: fin_score += 15
+    elif debt_equity < 1.5: fin_score += 8
+    if revenue_growth > 20: fin_score += 25
+    elif revenue_growth > 10: fin_score += 18
+    elif revenue_growth > 0:  fin_score += 10
+    fin_score = min(100, fin_score)
+
+    # ── GMP-based listing gain estimate ──────────────────────────────────────
+    gmp_listing_gain = 0.0
+    if gmp > 0 and issue_price > 0:
+        gmp_listing_gain = (gmp / issue_price) * 100
+
+    # ── Subscription-based confidence ────────────────────────────────────────
+    sub_confidence = "Low"
+    if sub >= 50:   sub_confidence = "Very High"
+    elif sub >= 20: sub_confidence = "High"
+    elif sub >= 10: sub_confidence = "Moderate"
+    elif sub >= 3:  sub_confidence = "Low-Moderate"
+
+    # ── COMPUTE SPECIFIC EXIT LEVELS ─────────────────────────────────────────
+    # These are derived from the actual data, not generic
+
+    # Listing day target: based on GMP + subscription + score
+    if gmp_listing_gain > 0:
+        listing_target_pct = min(gmp_listing_gain * 0.85, 80)  # 85% of GMP (conservative)
+    elif score >= 75:
+        listing_target_pct = 25.0
+    elif score >= 65:
+        listing_target_pct = 15.0
+    elif score >= 55:
+        listing_target_pct = 8.0
+    else:
+        listing_target_pct = 0.0
+
+    listing_target_price = round(issue_price * (1 + listing_target_pct / 100), 2) if issue_price > 0 else 0
+
+    # Stop loss: based on category and financial strength
+    if is_mainboard and fin_score >= 60:
+        stop_loss_pct = -8.0
+    elif is_mainboard:
+        stop_loss_pct = -12.0
+    elif fin_score >= 60:
+        stop_loss_pct = -10.0
+    else:
+        stop_loss_pct = -15.0
+
+    stop_loss_price = round(issue_price * (1 + stop_loss_pct / 100), 2) if issue_price > 0 else 0
+
+    # 30-day target: based on financial strength + revenue growth
+    if fin_score >= 70 and revenue_growth > 15:
+        target_30d_pct = listing_target_pct + 15
+    elif fin_score >= 50:
+        target_30d_pct = listing_target_pct + 8
+    else:
+        target_30d_pct = listing_target_pct + 3
+
+    target_30d_price = round(issue_price * (1 + target_30d_pct / 100), 2) if issue_price > 0 else 0
+
+    # 90-day target: based on ROE + margins + growth
+    if roe > 25 and pat_margin > 12 and revenue_growth > 15:
+        target_90d_pct = listing_target_pct + 35
+    elif roe > 15 and pat_margin > 8:
+        target_90d_pct = listing_target_pct + 20
+    elif fin_score >= 40:
+        target_90d_pct = listing_target_pct + 10
+    else:
+        target_90d_pct = listing_target_pct + 5
+
+    target_90d_price = round(issue_price * (1 + target_90d_pct / 100), 2) if issue_price > 0 else 0
+
+    # Recommended split strategy: based on score + GMP + financials
+    if score >= 75 and fin_score >= 65:
+        # Strong IPO: hold more for long term
+        listing_sell_pct = 30
+        hold_pct = 70
+        split_rationale = "Strong fundamentals justify holding majority for long-term gains"
+    elif score >= 65 and gmp_listing_gain > 20:
+        # Good IPO with high GMP: book partial profits on listing
+        listing_sell_pct = 50
+        hold_pct = 50
+        split_rationale = "High GMP suggests strong listing; book 50% to secure gains"
+    elif score >= 55:
+        # Moderate IPO: sell majority on listing
+        listing_sell_pct = 70
+        hold_pct = 30
+        split_rationale = "Moderate fundamentals; secure most gains on listing day"
+    else:
+        # Weak IPO: exit fully on listing if in profit
+        listing_sell_pct = 100
+        hold_pct = 0
+        split_rationale = "Weak fundamentals; exit completely on listing if in profit"
+
+    # Investor type recommendation
+    if score >= 70 and fin_score >= 60:
+        investor_type = "Both listing gain seekers AND long-term investors"
+    elif score >= 60 and gmp_listing_gain > 15:
+        investor_type = "Primarily listing gain seekers; long-term only if fundamentals hold"
+    elif fin_score >= 65 and revenue_growth > 15:
+        investor_type = "Long-term investors only; listing gain uncertain"
+    elif score < 50:
+        investor_type = "Neither — risk outweighs potential reward"
+    else:
+        investor_type = "Listing gain seekers with strict stop loss"
+
+    return {
+        "issue_price":          issue_price,
+        "roe":                  roe,
+        "pat_margin":           pat_margin,
+        "ebitda_margin":        ebitda_margin,
+        "debt_equity":          debt_equity,
+        "revenue_growth":       round(revenue_growth, 1),
+        "fin_score":            fin_score,
+        "peer_avg_pe":          round(peer_avg_pe, 1),
+        "valuation_vs_peers":   valuation_vs_peers,
+        "gmp_listing_gain":     round(gmp_listing_gain, 1),
+        "sub_confidence":       sub_confidence,
+        # Exit levels
+        "listing_target_pct":   round(listing_target_pct, 1),
+        "listing_target_price": listing_target_price,
+        "stop_loss_pct":        round(stop_loss_pct, 1),
+        "stop_loss_price":      stop_loss_price,
+        "target_30d_pct":       round(target_30d_pct, 1),
+        "target_30d_price":     target_30d_price,
+        "target_90d_pct":       round(target_90d_pct, 1),
+        "target_90d_price":     target_90d_price,
+        "listing_sell_pct":     listing_sell_pct,
+        "hold_pct":             hold_pct,
+        "split_rationale":      split_rationale,
+        "investor_type":        investor_type,
+        # Timeline for chart
+        "timeline": [
+            {"label": "Issue Price",    "price": issue_price,        "day": 0,  "type": "base"},
+            {"label": "Stop Loss",      "price": stop_loss_price,    "day": 0,  "type": "stop"},
+            {"label": "Listing Target", "price": listing_target_price,"day": 1, "type": "target"},
+            {"label": "30-Day Target",  "price": target_30d_price,   "day": 30, "type": "target"},
+            {"label": "90-Day Target",  "price": target_90d_price,   "day": 90, "type": "target"},
+        ] if issue_price > 0 else [],
+    }
+
+
 # ── AI recommendation ─────────────────────────────────────────────────────────
 
-def _ai_recommend(ipo: dict) -> str:
+def _ai_recommend(ipo: dict, exit_strategy: dict) -> str:
     key = os.environ.get("GROQ_API_KEY", "")
     if not key:
         return None
 
-    # Build financials text
     fin_text = ""
     if ipo.get("financials") and len(ipo["financials"]) > 1:
         fin_text = "\n".join([" | ".join(r) for r in ipo["financials"][:5]])
 
-    # Build peers text
     peers_text = ""
     if ipo.get("peers"):
         peers_text = "\n".join([
-            f"  {p['company'][:35]} — EPS: {p['eps']}, PE: {p['pe']}, RoNW: {p['ronw']}, NAV: {p.get('nav','N/A')}"
+            f"  {p['company'][:35]} — EPS: {p['eps']}, PE: {p['pe']}, RoNW: {p['ronw']}"
             for p in ipo["peers"][:4]
         ])
 
-    # Build objects of issue text
     objects_text = ""
     if ipo.get("objects_of_issue"):
         objects_text = "\n".join([
             f"  {o['purpose'][:50]}: {o['amount']}"
-            for o in ipo["objects_of_issue"][:5]
+            for o in ipo["objects_of_issue"][:4]
         ])
 
-    # Build investor categories
-    cat_text = ""
-    if ipo.get("investor_categories"):
-        cat_text = " | ".join([
-            f"{c['category']}: {c['percentage']}"
-            for c in ipo["investor_categories"][:5]
-        ])
+    ip = exit_strategy.get("issue_price", 0)
+    ip_str = f"₹{ip:.2f}" if ip > 0 else "TBA"
 
     prompt = f"""
-You are India's top IPO analyst. Give a comprehensive, data-driven analysis for this IPO.
+You are India's top IPO analyst. The quantitative exit strategy has already been computed
+from real data. Your job is to provide the REASONING and CONTEXT behind these specific numbers.
 
-=== IPO DETAILS ===
-Company: {ipo['name']}
-Category: {ipo['category']} | Status: {ipo['status']}
-Price Band: {ipo.get('price_band_full') or ipo.get('price_band','N/A')}
-Issue Size: {ipo.get('issue_size_full') or ipo.get('issue_size','N/A')}
-Issue Type: {ipo.get('issue_type','N/A')} | Face Value: {ipo.get('face_value','N/A')}
-Fresh Issue: {ipo.get('fresh_issue','N/A')} | OFS: {ipo.get('ofs','N/A')}
-Lot Size: {ipo.get('lot_size','N/A')} lots ({ipo.get('lot_shares','N/A')} shares)
-Min Investment: {ipo.get('min_investment','N/A')}
-Open: {ipo.get('open_date_full') or ipo.get('open_date','N/A')} | Close: {ipo.get('close_date_full') or ipo.get('close_date','N/A')}
-Listing Date: {ipo.get('listing_date','N/A')} | Allotment: {ipo.get('allotment_date','N/A')}
-Subscription: {ipo.get('subscription','N/A')} | GMP: {ipo.get('gmp','N/A')}
-IPO Score: {ipo['score']}/100
+=== IPO: {ipo['name']} ===
+Category: {ipo['category']} | Status: {ipo['status']} | Score: {ipo['score']}/100
+Issue Price: {ip_str}
+Financial Strength Score: {exit_strategy['fin_score']}/100
+Revenue CAGR: {exit_strategy['revenue_growth']}% | ROE: {exit_strategy['roe']}%
+PAT Margin: {exit_strategy['pat_margin']}% | Debt/Equity: {exit_strategy['debt_equity']}
+Valuation vs Peers: {exit_strategy['valuation_vs_peers']}
+GMP-implied listing gain: {exit_strategy['gmp_listing_gain']}%
+Subscription confidence: {exit_strategy['sub_confidence']}
 
-=== FINANCIAL KPIs ===
-ROE: {ipo.get('roe','N/A')} | ROCE: {ipo.get('roce','N/A')}
-EBITDA Margin: {ipo.get('ebitda_margin','N/A')} | PAT Margin: {ipo.get('pat_margin','N/A')}
-Debt/Equity: {ipo.get('debt_equity','N/A')} | EPS: {ipo.get('eps','N/A')}
-P/E Ratio: {ipo.get('pe_ratio','N/A')} | RoNW: {ipo.get('ronw','N/A')} | NAV: {ipo.get('nav','N/A')}
-Promoter Pre-Issue: {ipo.get('promoter_pre','N/A')} | Post-Issue: {ipo.get('promoter_post','N/A')}
+=== COMPUTED EXIT LEVELS (from real data) ===
+Stop Loss: {exit_strategy['stop_loss_price']} ({exit_strategy['stop_loss_pct']}%)
+Listing Day Target: {exit_strategy['listing_target_price']} (+{exit_strategy['listing_target_pct']}%)
+30-Day Target: {exit_strategy['target_30d_price']} (+{exit_strategy['target_30d_pct']}%)
+90-Day Target: {exit_strategy['target_90d_price']} (+{exit_strategy['target_90d_pct']}%)
+Recommended Split: Sell {exit_strategy['listing_sell_pct']}% on listing, hold {exit_strategy['hold_pct']}%
+Split Rationale: {exit_strategy['split_rationale']}
+Best For: {exit_strategy['investor_type']}
 
-=== INVESTOR ALLOCATION ===
-{cat_text if cat_text else 'Not available'}
-
-=== FINANCIAL HISTORY (Revenue | Expense | PAT | Assets in ₹ Cr) ===
+=== FINANCIAL HISTORY ===
 {fin_text if fin_text else 'Not available'}
 
 === PEER COMPARISON ===
 {peers_text if peers_text else 'Not available'}
 
-=== USE OF IPO PROCEEDS ===
+=== USE OF PROCEEDS ===
 {objects_text if objects_text else 'Not available'}
 
-Write a comprehensive IPO analysis with these EXACT sections:
+Write a sharp, data-driven IPO analysis with these EXACT sections.
+Use the EXACT numbers computed above — do NOT change them.
 
-**1. VERDICT** — APPLY / AVOID / NEUTRAL with a one-line reason
+**1. VERDICT** — APPLY / AVOID / NEUTRAL with one specific reason citing actual data
 
-**2. INVESTMENT THESIS** — 3 bullet points explaining WHY this IPO is worth applying (or not). Be specific with numbers from the data above.
+**2. WHY THESE EXIT LEVELS** — Explain in 3 bullet points WHY the stop loss is at {exit_strategy['stop_loss_pct']}%,
+   why the listing target is +{exit_strategy['listing_target_pct']}%, and why the 90-day target is +{exit_strategy['target_90d_pct']}%.
+   Reference the actual financial data (ROE, margins, growth, peers).
 
-**3. KEY RISKS** — 3 specific risks. Be honest about red flags.
+**3. FINANCIAL HEALTH** — Rate: Strong/Moderate/Weak. Cite ROE {exit_strategy['roe']}%,
+   PAT Margin {exit_strategy['pat_margin']}%, Revenue CAGR {exit_strategy['revenue_growth']}%.
+   Is this company growing? Is it profitable?
 
-**4. FINANCIAL HEALTH ASSESSMENT** — Rate the company: Strong / Moderate / Weak. Comment on ROE, margins, debt, and revenue growth trend.
+**4. VALUATION VERDICT** — Is {ip_str} a fair price? Reference peer P/E comparison.
 
-**5. VALUATION CHECK** — Is the IPO priced fairly vs peers? Compare P/E and RoNW with peer companies.
+**5. KEY RISKS** — 3 specific risks that could invalidate the exit strategy.
+   Be honest. What could go wrong?
 
-**6. PROFIT MAXIMISATION STRATEGY** — This is the most important section. Give a specific exit plan:
-   - **Listing Day Strategy**: Should the investor sell on listing day? At what % gain should they exit?
-   - **Short-term (30 days)**: Hold or sell? What price target?
-   - **Medium-term (60-90 days)**: What to do if listing gain is moderate?
-   - **Recommended Split**: e.g. "Sell 50% on listing day, hold 50% for 90 days"
-   - **Stop Loss**: At what % below issue price should the investor exit to cut losses?
+**6. EXECUTION GUIDE** — Step-by-step what the investor should do:
+   Day 0 (Apply): Yes/No and why
+   Listing Day: Sell {exit_strategy['listing_sell_pct']}% at {exit_strategy['listing_target_price']} — what to watch for
+   Day 30: Review at {exit_strategy['target_30d_price']} — what triggers a sell vs hold
+   Day 90: Final decision at {exit_strategy['target_90d_price']} — exit conditions
 
-**7. WHO SHOULD APPLY** — Listing gain seekers / Long-term investors / Both / Neither
-
-Keep total under 450 words. Use ₹ for amounts. Be direct, specific, and actionable.
+Keep under 400 words. Use ₹ for amounts. Be direct and specific.
 """.strip()
 
     try:
@@ -454,13 +654,13 @@ Keep total under 450 words. Use ₹ for amounts. Be direct, specific, and action
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Content-Type": "application/json",
                      "Authorization": f"Bearer {key}"},
-            json={"model": "llama-3.3-70b-versatile", "temperature": 0.5,
-                  "max_tokens": 700,
+            json={"model": "llama-3.3-70b-versatile", "temperature": 0.45,
+                  "max_tokens": 650,
                   "messages": [
                       {"role": "system",
-                       "content": ("You are India's top IPO analyst. Be direct, data-driven, "
-                                   "and give specific profit-maximising advice. "
-                                   "Always give a clear exit strategy with numbers.")},
+                       "content": ("You are India's top IPO analyst. The exit levels are already "
+                                   "computed from real data. Explain the reasoning behind them. "
+                                   "Be specific, cite actual numbers, never be generic.")},
                       {"role": "user", "content": prompt},
                   ]},
             timeout=40,

@@ -8,7 +8,7 @@ import sys
 import os
 from pathlib import Path
 
-# ── Add project sections and core to path so we reuse existing fetchers ──────
+# ── Add project sections and core to path ────────────────────────────────────
 _ROOT = Path(__file__).resolve().parents[2]
 for _sub in [
     _ROOT / "sections" / "02_stock_intelligence",
