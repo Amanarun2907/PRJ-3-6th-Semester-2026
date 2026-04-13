@@ -99,15 +99,53 @@ def get_sector_flow():
         changes, vols = [], []
         for t in tickers:
             try:
-                hist = yf.Ticker(t).history(period="2d")
-                if len(hist) >= 2:
-                    chg = float((hist["Close"].iloc[-1]-hist["Close"].iloc[-2])/hist["Close"].iloc[-2]*100)
-                    vol_ratio = float(hist["Volume"].iloc[-1] / hist["Volume"].mean()) if hist["Volume"].mean() > 0 else 1
-                    changes.append(chg); vols.append(vol_ratio)
-            except Exception: continue
+                ticker = yf.Ticker(t)
+                price  = None
+                prev   = None
+                # Live price
+                try:
+                    p = ticker.fast_info.last_price
+                    if p and not np.isnan(float(p)):
+                        price = float(p)
+                except Exception:
+                    pass
+                # Prev close
+                try:
+                    pc = ticker.fast_info.previous_close
+                    if pc and not np.isnan(float(pc)):
+                        prev = float(pc)
+                except Exception:
+                    pass
+                # Fallback to daily history
+                if price is None or prev is None:
+                    hist   = ticker.history(period="5d")
+                    closes = hist["Close"].dropna() if not hist.empty else None
+                    if closes is not None and len(closes) >= 2:
+                        price = float(closes.iloc[-1])
+                        prev  = float(closes.iloc[-2])
+                if price is None or prev is None or prev == 0:
+                    continue
+                chg = (price - prev) / prev * 100
+                hist2 = ticker.history(period="5d")
+                vol_ratio = 1.0
+                if not hist2.empty:
+                    vols_series = hist2["Volume"].dropna()
+                    if len(vols_series) >= 2:
+                        vol_ratio = float(vols_series.iloc[-1] / vols_series.mean()) if vols_series.mean() > 0 else 1.0
+                changes.append(chg)
+                vols.append(vol_ratio)
+            except Exception:
+                continue
         if changes:
-            avg_chg = float(np.mean(changes)); avg_vol = float(np.mean(vols))
-            sig = "Strong Buy" if avg_vol>1.3 and avg_chg>2 else "Buy" if avg_chg>0 else "Sell" if avg_chg<-2 else "Hold"
-            result.append({"sector": sector, "avg_change": round(avg_chg,2),
-                           "avg_volume_ratio": round(avg_vol,2), "signal": sig})
+            avg_chg = float(np.mean(changes))
+            avg_vol = float(np.mean(vols))
+            sig = "Strong Buy" if avg_vol > 1.3 and avg_chg > 2 else \
+                  "Buy"        if avg_chg > 0 else \
+                  "Sell"       if avg_chg < -2 else "Hold"
+            result.append({
+                "sector":            sector,
+                "avg_change":        round(avg_chg, 2),
+                "avg_volume_ratio":  round(avg_vol, 2),
+                "signal":            sig,
+            })
     return result
